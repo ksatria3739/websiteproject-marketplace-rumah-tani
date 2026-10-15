@@ -37,13 +37,20 @@
     </div>
 
     <!-- Navigation Tabs -->
-    <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
+    <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; flex-wrap: wrap;">
       <button
         class="btn btn-sm"
         :class="activeTab === 'inventory' ? 'btn-primary' : 'btn-secondary'"
         @click="activeTab = 'inventory'"
       >
         🌾 Manajemen Panen & Stok ({{ commodities.length }})
+      </button>
+      <button
+        class="btn btn-sm"
+        :class="activeTab === 'orders' ? 'btn-primary' : 'btn-secondary'"
+        @click="activeTab = 'orders'"
+      >
+        📦 Pesanan Masuk ({{ orders.length }})
       </button>
       <button
         class="btn btn-sm"
@@ -185,6 +192,109 @@
       </div>
     </div>
 
+    <!-- TAB: PESANAN MASUK DARI PEMBELI -->
+    <div v-if="activeTab === 'orders'">
+      <div v-if="loadingOrders" style="text-align: center; padding: 3rem 0;">
+        <p class="text-muted">Memuat pesanan masuk dari pembeli...</p>
+      </div>
+
+      <div v-else-if="orders.length === 0" class="card" style="text-align: center; padding: 3rem 0;">
+        <p style="font-size: 1.1rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+          Belum ada pesanan masuk untuk komoditas hasil panen Anda.
+        </p>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">
+          Ketika pembeli melakukan checkout dan pembayaran lunas, rincian pesanan akan otomatis muncul di sini.
+        </p>
+      </div>
+
+      <div v-else style="display: flex; flex-direction: column; gap: 1.25rem;">
+        <div v-for="ord in orders" :key="ord.id" class="card">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; margin-bottom: 1rem;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <span class="badge" :class="getOrderBadge(ord.status)">
+                  {{ getOrderStatusLabel(ord.status) }}
+                </span>
+                <span v-if="ord.tracking_code" class="badge badge-blue">
+                  Resi: {{ ord.tracking_code }}
+                </span>
+                <span class="badge badge-gray" style="font-size: 0.75rem;">
+                  {{ formatDate(ord.created_at) }}
+                </span>
+              </div>
+              <h3 style="font-size: 1.25rem; font-weight: 700; margin-top: 0.35rem;">
+                {{ ord.code }}
+              </h3>
+              <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.2rem;">
+                Pembeli: <strong>{{ ord.buyer_name || ord.buyer }}</strong> • Wilayah Tujuan: <strong>{{ ord.dest_region || '-' }}</strong>
+              </p>
+            </div>
+
+            <div style="text-align: right;">
+              <div style="font-size: 0.8rem; color: var(--text-muted);">Total Pembayaran:</div>
+              <div style="font-size: 1.35rem; font-weight: 800; color: var(--primary);">
+                {{ idr(ord.total) }}
+              </div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">
+                Total Muatan: {{ ord.total_weight_kg || 0 }} kg
+              </div>
+            </div>
+          </div>
+
+          <!-- Items list -->
+          <div class="table-responsive" style="margin-bottom: 1rem;">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Komoditas & Grade Mutu</th>
+                  <th>Kuantitas</th>
+                  <th>Harga Satuan</th>
+                  <th>Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in (ord.items || [])" :key="item.id || item.name">
+                  <td style="font-weight: 600;">
+                    {{ item.name }}
+                    <span v-if="item.grade" class="badge" :class="getGradeBadge(item.grade)" style="margin-left: 0.35rem;">
+                      {{ item.grade }}
+                    </span>
+                  </td>
+                  <td>{{ item.qty }} kg</td>
+                  <td>{{ idr(item.unit_price) }}</td>
+                  <td style="font-weight: 700;">{{ idr(item.line_total) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Action buttons for order processing -->
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; border-top: 1px solid var(--border); padding-top: 0.75rem; background: #f8fafc; padding: 0.75rem; border-radius: var(--radius);">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">
+              Alamat Kirim: <em>{{ ord.ship_address || 'Alamat Penerima / Gudang Pembeli' }}</em>
+            </div>
+            <div>
+              <button
+                v-if="ord.status === 'paid'"
+                class="btn btn-primary btn-sm"
+                :disabled="acceptingOrderId === ord.id"
+                @click="acceptOrder(ord.id)"
+              >
+                <span v-if="acceptingOrderId === ord.id">Memproses...</span>
+                <span v-else>✓ Siapkan Panen & Serahkan ke Tengkulak Wilayah</span>
+              </button>
+              <span v-else-if="ord.status === 'processing'" class="badge badge-green" style="font-size: 0.85rem; padding: 0.35rem 0.75rem;">
+                ✓ Panen Siap / Menunggu Dijemput Armada Tengkulak
+              </span>
+              <span v-else-if="ord.status === 'delivered' || ord.status === 'completed'" class="badge badge-green" style="font-size: 0.85rem; padding: 0.35rem 0.75rem;">
+                ✓ Pesanan Telah Diterima Pembeli
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- TAB 2: INCOMING NEGOTIATIONS -->
     <div v-if="activeTab === 'negotiations'">
       <div v-if="loadingNego" style="text-align: center; padding: 3rem 0;">
@@ -201,25 +311,25 @@
             <div>
               <span class="badge" :class="getNegoBadge(neg.status)">{{ neg.status }}</span>
               <h3 style="font-size: 1.15rem; font-weight: 700; margin-top: 0.25rem;">
-                {{ neg.variant?.commodity?.name }} ({{ neg.variant?.grade }})
+                {{ neg.variant_name || (neg.variant?.commodity?.name ? neg.variant.commodity.name + ' - ' + neg.variant.grade : 'Komoditas') }}
               </h3>
               <p style="font-size: 0.85rem; color: var(--text-muted);">
-                Dari Pembeli: <strong>{{ neg.buyer?.name }}</strong> ({{ neg.buyer?.company_name || 'B2C' }})
+                Dari Pembeli: <strong>{{ neg.buyer?.name || 'Pembeli B2B' }}</strong> ({{ neg.buyer?.company_name || 'B2B/Umum' }})
               </p>
             </div>
             <div style="text-align: right;">
               <div style="font-size: 0.8rem; color: var(--text-muted);">Tawaran Harga:</div>
-              <div style="font-size: 1.2rem; font-weight: 800; color: var(--primary);">
-                {{ idr(neg.latest_offer?.offered_price || neg.current_offer_price) }}
+              <div style="font-size: 1.25rem; font-weight: 800; color: var(--primary);">
+                {{ idr(neg.current_offer_price || neg.latest_offer?.offered_price || neg.list_price || 0) }}
               </div>
               <div style="font-size: 0.8rem; color: var(--text-muted);">
-                Volume: {{ neg.requested_volume }} {{ neg.variant?.unit }}
+                Volume: {{ neg.qty || neg.requested_volume || 0 }} {{ neg.unit || neg.variant?.unit || 'kg' }}
               </div>
             </div>
           </div>
 
-          <div v-if="neg.buyer_note" style="background: #f8fafc; padding: 0.75rem; border-radius: var(--radius); font-size: 0.85rem; margin-bottom: 1rem;">
-            <strong>Catatan Pembeli:</strong> {{ neg.buyer_note }}
+          <div v-if="neg.buyer_note || neg.latest_offer?.message" style="background: #f8fafc; padding: 0.75rem; border-radius: var(--radius); font-size: 0.85rem; margin-bottom: 1rem;">
+            <strong>Catatan Pembeli:</strong> {{ neg.buyer_note || neg.latest_offer?.message }}
           </div>
 
           <!-- Action buttons for pending negotiation -->
@@ -456,11 +566,14 @@ const auth = useAuthStore();
 
 const activeTab = ref('inventory');
 const commodities = ref([]);
+const orders = ref([]);
 const negotiations = ref([]);
 const categories = ref([]);
 const regions = ref([]);
 
 const loadingInventory = ref(true);
+const loadingOrders = ref(false);
+const acceptingOrderId = ref(null);
 const loadingNego = ref(false);
 const submittingCommodity = ref(false);
 const stockUpdating = ref(null);
@@ -568,9 +681,57 @@ const getNegoBadge = (status) => {
   }
 };
 
+const getOrderBadge = (status) => {
+  switch (status) {
+    case 'paid': return 'badge-green';
+    case 'processing': return 'badge-blue';
+    case 'delivered':
+    case 'completed': return 'badge-green';
+    default: return 'badge-amber';
+  }
+};
+
+const getOrderStatusLabel = (status) => {
+  switch (status) {
+    case 'paid': return 'LUNAS (Menyiapkan Panen)';
+    case 'processing': return 'SEDANG DIKEMAS / SIAP JEMPUT';
+    case 'delivered': return 'TELAH DITERIMA';
+    case 'completed': return 'TRANSAKSI SELESAI';
+    default: return status;
+  }
+};
+
 const formatDate = (iso) => {
   if (!iso) return '-';
   return new Date(iso).toLocaleDateString('id-ID');
+};
+
+const loadOrders = async () => {
+  loadingOrders.value = true;
+  try {
+    const res = await api.get('/orders');
+    orders.value = Array.isArray(res) ? res : (res.orders || []);
+  } catch (err) {
+    console.error('Failed to load farmer orders:', err);
+  } finally {
+    loadingOrders.value = false;
+  }
+};
+
+const acceptOrder = async (orderId) => {
+  acceptingOrderId.value = orderId;
+  noticeMessage.value = '';
+  errorMessage.value = '';
+  try {
+    await api.post(`/orders/${orderId}/accept`);
+    noticeMessage.value = '✓ Hasil panen telah ditandai SIAP! Notifikasi telah dikirimkan ke hub logistik tengkulak wilayah untuk penjemputan armada.';
+    await loadOrders();
+    await loadInventory();
+  } catch (err) {
+    errorMessage.value = err.message || 'Gagal memperbarui status pesanan.';
+  } finally {
+    acceptingOrderId.value = null;
+  }
 };
 
 const loadInventory = async () => {
@@ -695,6 +856,7 @@ const submitNewCommodity = async () => {
 
 onMounted(() => {
   loadInventory();
+  loadOrders();
   loadNegotiations();
   loadMeta();
 });

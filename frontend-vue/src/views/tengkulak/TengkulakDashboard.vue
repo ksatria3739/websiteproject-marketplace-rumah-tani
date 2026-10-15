@@ -434,7 +434,8 @@ const executeAssignVehicle = async () => {
   if (!modalAssign.shipment || !modalAssign.vehicle_id) return;
   try {
     await api.post('/logistics/shipments', {
-      orderId: modalAssign.shipment.id,
+      orderId: modalAssign.shipment.order_id || modalAssign.shipment.id,
+      shipmentId: modalAssign.shipment.id,
       vehicleId: modalAssign.vehicle_id,
     });
     modalAssign.show = false;

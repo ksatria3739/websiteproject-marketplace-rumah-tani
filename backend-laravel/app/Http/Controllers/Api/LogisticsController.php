@@ -166,23 +166,45 @@ class LogisticsController extends Controller
         $query = Shipment::with(['order.originRegion', 'order.destRegion', 'vehicle']);
 
         if ($user->role === 'admin_tengkulak') {
-            $query->whereHas('order', function ($o) use ($user) {
+            $userRegion = Region::find($user->region_id);
+            $query->whereHas('order', function ($o) use ($user, $userRegion) {
                 $o->where('region_id', $user->region_id);
+                if ($userRegion) {
+                    $o->orWhereHas('originRegion', function ($r) use ($userRegion) {
+                        $r->where('province', $userRegion->province);
+                    });
+                }
             });
         }
 
         $shipments = $query->latest('updated_at')->take(200)->get()->map(function ($s) {
+            $order = $s->order;
+            $originName = $order && $order->originRegion ? $order->originRegion->name : '-';
+            $destName = $order && $order->destRegion ? $order->destRegion->name : '-';
+
             return [
                 'id' => $s->id,
-                'order_code' => $s->order->code,
+                'order_id' => $s->order_id,
+                'order_code' => $order ? $order->code : '-',
                 'tracking_code' => $s->tracking_code,
                 'status' => $s->status,
                 'updated_at' => $s->updated_at,
-                'total_weight_kg' => $s->order->total_weight_kg,
+                'total_weight_kg' => $order ? (float)$order->total_weight_kg : 0,
+                'actual_weight_kg' => $order ? (float)$order->total_weight_kg : 0,
+                'vehicle_id' => $s->vehicle_id,
+                'vehicle' => $s->vehicle ? [
+                    'id' => $s->vehicle->id,
+                    'plate_number' => $s->vehicle->plate,
+                    'model' => $s->vehicle->type,
+                    'driver_name' => $s->vehicle->driver_name,
+                    'driver_phone' => '-',
+                ] : null,
                 'plate' => $s->vehicle ? $s->vehicle->plate : '-',
                 'driver_name' => $s->vehicle ? $s->vehicle->driver_name : '-',
-                'origin' => $s->order->originRegion->name,
-                'destination' => $s->order->destRegion->name,
+                'origin' => $originName,
+                'destination' => $destName,
+                'origin_region' => ['name' => $originName],
+                'destination_region' => ['name' => $destName],
             ];
         });
 
@@ -191,6 +213,23 @@ class LogisticsController extends Controller
 
     public function allocateShipment(Request $request)
     {
+        $orderId = $request->input('orderId', $request->input('order_id'));
+        $shipmentId = $request->input('shipmentId', $request->input('shipment_id'));
+        if (!$orderId && $shipmentId) {
+            $sh = Shipment::find($shipmentId);
+            if ($sh) {
+                $orderId = $sh->order_id;
+            }
+        }
+        $vehicleId = $request->input('vehicleId', $request->input('vehicle_id'));
+        $routeId = $request->input('routeId', $request->input('route_id'));
+
+        $request->merge([
+            'orderId' => $orderId,
+            'vehicleId' => $vehicleId,
+            'routeId' => $routeId,
+        ]);
+
         $validated = $request->validate([
             'orderId' => 'required|exists:orders,id',
             'vehicleId' => 'required|exists:vehicles,id',
@@ -202,7 +241,11 @@ class LogisticsController extends Controller
         $shipment = DB::transaction(function () use ($validated, $user) {
             $order = Order::where('id', $validated['orderId'])->lockForUpdate()->firstOrFail();
 
-            if ($user->role === 'admin_tengkulak' && $order->region_id !== $user->region_id) {
+            $userRegion = Region::find($user->region_id);
+            $orderRegion = $order->originRegion;
+            $sameRegion = ($order->region_id === $user->region_id) || ($userRegion && $orderRegion && $userRegion->province === $orderRegion->province);
+
+            if ($user->role === 'admin_tengkulak' && !$sameRegion) {
                 abort(403, 'Pesanan berada di luar wilayah kendali Anda.');
             }
 
@@ -218,23 +261,33 @@ class LogisticsController extends Controller
             // Check active vehicle load capacity
             $currentLoad = Shipment::where('vehicle_id', $vehicle->id)
                 ->where('status', '!=', 'delivered')
+                ->where('order_id', '!=', $order->id)
                 ->with('order')
                 ->get()
-                ->sum(fn($s) => $s->order->total_weight_kg);
+                ->sum(fn($s) => $s->order ? $s->order->total_weight_kg : 0);
 
             if (($currentLoad + $order->total_weight_kg) > $vehicle->capacity_kg) {
                 abort(409, "Kapasitas armada {$vehicle->plate} terlampaui. Muatan aktif: {$currentLoad} kg, Pesanan ini: {$order->total_weight_kg} kg, Maksimal: {$vehicle->capacity_kg} kg.");
             }
 
-            $trackingCode = 'TRK-' . strtoupper(Str::random(10));
-
-            $shipment = Shipment::create([
-                'order_id' => $order->id,
-                'vehicle_id' => $vehicle->id,
-                'route_id' => $validated['routeId'] ?? null,
-                'status' => 'preparing',
-                'tracking_code' => $trackingCode,
-            ]);
+            $shipment = Shipment::where('order_id', $order->id)->first();
+            if ($shipment) {
+                $shipment->vehicle_id = $vehicle->id;
+                if (!empty($validated['routeId'])) {
+                    $shipment->route_id = $validated['routeId'];
+                }
+                $shipment->status = 'preparing';
+                $shipment->save();
+            } else {
+                $trackingCode = 'TRK-' . strtoupper(Str::random(10));
+                $shipment = Shipment::create([
+                    'order_id' => $order->id,
+                    'vehicle_id' => $vehicle->id,
+                    'route_id' => $validated['routeId'] ?? null,
+                    'status' => 'preparing',
+                    'tracking_code' => $trackingCode,
+                ]);
+            }
 
             ShipmentEvent::create([
                 'shipment_id' => $shipment->id,
@@ -248,7 +301,7 @@ class LogisticsController extends Controller
             return $shipment;
         });
 
-        return response()->json($shipment, 201);
+        return response()->json($shipment, 200);
     }
 
     public function updateStatus(Request $request, $id)

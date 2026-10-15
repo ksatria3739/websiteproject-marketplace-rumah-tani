@@ -10,6 +10,8 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
 use App\Models\Region;
+use App\Models\Shipment;
+use App\Models\ShipmentEvent;
 use App\Models\StockMovement;
 use App\Models\SystemSetting;
 use App\Models\Variant;
@@ -671,6 +673,25 @@ class CommerceController extends Controller
                             ]);
                         }
                     }
+
+                    // Auto-initialize Shipment record so Tengkulak can allocate armada & track status
+                    $existingShipment = Shipment::where('order_id', $order->id)->first();
+                    if (!$existingShipment) {
+                        $trackingCode = 'TRK-' . strtoupper(Str::random(10));
+                        $shipment = Shipment::create([
+                            'order_id' => $order->id,
+                            'vehicle_id' => null,
+                            'route_id' => null,
+                            'status' => 'preparing',
+                            'tracking_code' => $trackingCode,
+                        ]);
+
+                        ShipmentEvent::create([
+                            'shipment_id' => $shipment->id,
+                            'status' => 'preparing',
+                            'note' => 'Pembayaran terkonfirmasi lunas. Petani (' . ($order->seller ? $order->seller->name : 'Produsen') . ') sedang menyiapkan komoditas di lahan.',
+                        ]);
+                    }
                 }
             } else {
                 // Expired or cancelled: release reserved quantities
@@ -768,7 +789,7 @@ class CommerceController extends Controller
     {
         $user = $request->user();
 
-        $query = Negotiation::with(['variant.commodity', 'offers.fromUser']);
+        $query = Negotiation::with(['variant.commodity', 'offers.fromUser', 'buyer']);
 
         if ($user->role === 'pembeli') {
             $query->where('buyer_id', $user->id);
@@ -782,20 +803,48 @@ class CommerceController extends Controller
         }
 
         $negos = $query->latest()->get()->map(function ($n) {
+            $lastOffer = $n->offers->last();
+            $commName = $n->variant && $n->variant->commodity ? $n->variant->commodity->name : 'Komoditas';
+            $grade = $n->variant ? $n->variant->grade : 'Grade A';
+            $unit = $n->variant ? $n->variant->unit : 'kg';
+            $lastPrice = $lastOffer ? (float)$lastOffer->unit_price : (float)($n->variant ? $n->variant->price : 0);
+
             return [
                 'id' => $n->id,
                 'variant_id' => $n->variant_id,
-                'variant_name' => $n->variant->commodity->name . ' - ' . $n->variant->variant_name,
-                'grade' => $n->variant->grade,
-                'list_price' => $n->variant->price,
-                'qty' => $n->qty,
+                'variant_name' => "{$commName} - {$grade}",
+                'grade' => $grade,
+                'unit' => $unit,
+                'list_price' => $n->variant ? (float)$n->variant->price : 0,
+                'qty' => (float)$n->qty,
+                'requested_volume' => (float)$n->qty,
                 'status' => $n->status,
                 'agreed_price' => $n->agreed_price,
+                'current_offer_price' => $lastPrice,
+                'buyer_note' => $lastOffer ? $lastOffer->message : null,
+                'latest_offer' => $lastOffer ? [
+                    'offered_price' => (float)$lastOffer->unit_price,
+                    'message' => $lastOffer->message,
+                ] : null,
+                'buyer' => [
+                    'id' => $n->buyer_id,
+                    'name' => $n->buyer ? $n->buyer->name : 'Pembeli',
+                    'company_name' => $n->buyer ? ($n->buyer->company_name ?? 'B2B/Umum') : 'B2B',
+                ],
+                'variant' => [
+                    'id' => $n->variant_id,
+                    'grade' => $grade,
+                    'unit' => $unit,
+                    'price' => $n->variant ? (float)$n->variant->price : 0,
+                    'commodity' => [
+                        'name' => $commName,
+                    ],
+                ],
                 'expires_at' => $n->expires_at,
                 'offers' => $n->offers->map(fn($o) => [
                     'from' => $o->from_user_id,
-                    'from_name' => $o->fromUser->name,
-                    'price' => $o->unit_price,
+                    'from_name' => $o->fromUser ? $o->fromUser->name : 'Pengguna',
+                    'price' => (float)$o->unit_price,
                     'msg' => $o->message,
                     'at' => $o->created_at,
                 ]),
@@ -875,7 +924,7 @@ class CommerceController extends Controller
     {
         $user = $request->user();
 
-        $query = Order::with(['buyer', 'seller', 'shipment', 'payment']);
+        $query = Order::with(['buyer', 'seller', 'shipment', 'payment', 'items', 'originRegion', 'destRegion']);
 
         if ($user->role === 'pembeli') {
             $query->where('buyer_id', $user->id);
@@ -898,12 +947,27 @@ class CommerceController extends Controller
                 'id' => $o->id,
                 'code' => $o->code,
                 'status' => $o->status,
-                'total' => $o->total,
-                'total_weight_kg' => $o->total_weight_kg,
+                'total' => (float)$o->total,
+                'total_weight_kg' => (float)$o->total_weight_kg,
                 'created_at' => $o->created_at,
                 'buyer' => $o->buyer ? $o->buyer->name : '-',
+                'buyer_name' => $o->buyer ? $o->buyer->name : '-',
+                'buyer_phone' => $o->buyer ? ($o->buyer->phone ?? '-') : '-',
                 'seller' => $o->seller ? $o->seller->name : '-',
+                'seller_name' => $o->seller ? $o->seller->name : '-',
+                'origin_region' => $o->originRegion ? $o->originRegion->name : '-',
+                'dest_region' => $o->destRegion ? $o->destRegion->name : '-',
+                'ship_address' => $o->ship_address,
                 'tracking_code' => $o->shipment ? $o->shipment->tracking_code : null,
+                'shipment_status' => $o->shipment ? $o->shipment->status : 'menunggu_armada',
+                'items' => $o->items->map(fn($it) => [
+                    'id' => $it->id,
+                    'name' => $it->name_snapshot,
+                    'grade' => $it->grade,
+                    'qty' => (float)$it->qty,
+                    'unit_price' => (float)$it->unit_price,
+                    'line_total' => (float)$it->line_total,
+                ]),
                 'payment' => $o->payment ? [
                     'id' => $o->payment->id,
                     'method' => $o->payment->method,
@@ -966,7 +1030,7 @@ class CommerceController extends Controller
     public function acceptOrder(Request $request, $id)
     {
         $user = $request->user();
-        $order = Order::findOrFail($id);
+        $order = Order::with('shipment')->findOrFail($id);
 
         $canAccept = ($order->seller_id === $user->id) ||
                      ($user->role === 'admin_tengkulak' && $order->region_id === $user->region_id);
@@ -977,6 +1041,14 @@ class CommerceController extends Controller
 
         $order->status = 'processing';
         $order->save();
+
+        if ($order->shipment) {
+            ShipmentEvent::create([
+                'shipment_id' => $order->shipment->id,
+                'status' => 'picked_up',
+                'note' => 'Petani (' . $user->name . ') telah selesai memanen & mengemas komoditas. Siap dijemput armada tengkulak.',
+            ]);
+        }
 
         return response()->json(['ok' => true]);
     }
