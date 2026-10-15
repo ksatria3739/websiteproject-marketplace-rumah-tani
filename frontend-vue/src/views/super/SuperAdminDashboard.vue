@@ -645,10 +645,10 @@
             </div>
 
             <div style="text-align: right;">
-              <div v-if="s.vehicle || s.plate !== '-'" style="font-size: 0.85rem; font-weight: 600;">
-                🚛 {{ s.vehicle?.plate_number || s.plate }} ({{ s.vehicle?.model || 'Armada Angkut' }})
-                <div style="font-size: 0.75rem; color: var(--text-muted);">
-                  Driver: {{ s.vehicle?.driver_name || s.driver_name || '-' }}
+              <div v-if="s.vehicle || (s.plate && s.plate !== '-')" style="font-size: 0.85rem; font-weight: 600;">
+                🚛 {{ s.vehicle?.plate || s.vehicle?.plate_number || s.plate }} ({{ s.vehicle?.type || s.vehicle?.model || 'Armada Angkut' }})
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.15rem;">
+                  Pengemudi: <strong>{{ s.vehicle?.driver_name || s.driver_name || '-' }}</strong>
                 </div>
               </div>
               <div v-else style="font-size: 0.85rem; color: #dc2626; font-weight: 600;">

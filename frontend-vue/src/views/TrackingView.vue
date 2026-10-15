@@ -123,9 +123,9 @@
             🚛 Informasi Armada & Supir
           </div>
           <div v-if="shipment.carrier || shipment.vehicle" style="font-size: 0.95rem; font-weight: 600; margin-top: 0.35rem;">
-            {{ shipment.carrier?.model || shipment.vehicle?.model }} ({{ shipment.carrier?.plate || shipment.vehicle?.plate_number }})
-            <div style="font-size: 0.85rem; font-weight: normal; color: var(--text-muted);">
-              Supir: {{ shipment.carrier?.driver || shipment.vehicle?.driver_name }} ({{ shipment.carrier?.phone || shipment.vehicle?.driver_phone }})
+            {{ shipment.carrier?.model || shipment.vehicle?.type || shipment.vehicle?.model || 'Armada Angkut' }} ({{ shipment.carrier?.plate || shipment.vehicle?.plate || shipment.vehicle?.plate_number }})
+            <div style="font-size: 0.85rem; font-weight: normal; color: var(--text-muted); margin-top: 0.2rem;">
+              Pengemudi: <strong>{{ shipment.carrier?.driver || shipment.vehicle?.driver_name || '-' }}</strong>
             </div>
           </div>
           <div v-else style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.35rem;">

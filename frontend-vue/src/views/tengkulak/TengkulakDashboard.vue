@@ -150,10 +150,10 @@
             </div>
 
             <div style="text-align: right;">
-              <div v-if="s.vehicle" style="font-size: 0.85rem; font-weight: 600;">
-                🚛 {{ s.vehicle.model }} ({{ s.vehicle.plate_number }})
-                <div style="font-size: 0.75rem; color: var(--text-muted);">
-                  Supir: {{ s.vehicle.driver_name }} ({{ s.vehicle.driver_phone }})
+              <div v-if="s.vehicle || s.plate" style="font-size: 0.85rem; font-weight: 600;">
+                🚛 {{ s.vehicle?.plate || s.vehicle?.plate_number || s.plate }} ({{ s.vehicle?.type || s.vehicle?.model || 'Armada Angkut' }})
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.15rem;">
+                  Pengemudi: <strong>{{ s.vehicle?.driver_name || s.driver_name || 'Belum Ditugaskan' }}</strong>
                 </div>
               </div>
               <div v-else style="font-size: 0.85rem; color: #dc2626; font-weight: 600;">
@@ -198,19 +198,19 @@
       <div class="grid grid-3">
         <div v-for="v in vehicles" :key="v.id" class="card">
           <div style="font-size: 2rem; margin-bottom: 0.5rem;">🚛</div>
-          <h3 style="font-size: 1.1rem; font-weight: 700;">{{ v.model }}</h3>
+          <h3 style="font-size: 1.1rem; font-weight: 700;">{{ v.type || v.model || 'Armada Angkut' }}</h3>
           <p style="font-size: 0.85rem; color: var(--text-muted); font-family: monospace;">
-            Plat: {{ v.plate_number }}
+            No. Polisi: <strong style="color: #1e3a8a; font-size: 0.95rem;">{{ v.plate || v.plate_number }}</strong>
           </p>
           <div style="margin-top: 0.5rem; font-size: 0.85rem;">
-            Kapasitas Muat: <strong>{{ v.max_capacity_kg }} kg</strong>
+            Kapasitas Muat: <strong>{{ v.capacity_kg || v.max_capacity_kg }} kg</strong>
           </div>
-          <div style="font-size: 0.85rem; color: var(--text-muted);">
-            Supir: {{ v.driver_name }} ({{ v.driver_phone }})
+          <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">
+            Pengemudi: <strong>{{ v.driver_name || 'Belum Ditugaskan' }}</strong>
           </div>
           <div style="margin-top: 0.75rem;">
-            <span class="badge" :class="v.status === 'available' ? 'badge-green' : 'badge-amber'">
-              {{ v.status === 'available' ? 'Siap Angkut' : 'Sedang Bertugas' }}
+            <span class="badge" :class="(v.is_available ?? v.status === 'available') ? 'badge-green' : 'badge-amber'">
+              {{ (v.is_available ?? v.status === 'available') ? 'Siap Angkut' : 'Sedang Bertugas' }}
             </span>
           </div>
         </div>
@@ -226,11 +226,11 @@
         </p>
 
         <div class="form-group">
-          <label class="label">Pilih Kendaraan:</label>
-          <select v-model="modalAssign.vehicle_id" class="select" required>
-            <option value="" disabled>-- Pilih Armada --</option>
+          <label class="label">Pilih Kendaraan & Pengemudi:</label>
+          <select v-model="modalAssign.vehicle_id" class="select" required style="font-size: 0.88rem; padding: 0.5rem;">
+            <option value="" disabled>-- Pilih Armada Pengangkut --</option>
             <option v-for="v in vehicles" :key="v.id" :value="v.id">
-              {{ v.model }} ({{ v.plate_number }}) - Maks: {{ v.max_capacity_kg }} kg
+              {{ v.plate || v.plate_number }} • {{ v.type || v.model }} (Pengemudi: {{ v.driver_name || 'Belum Ditugaskan' }}) — Maks: {{ v.capacity_kg || v.max_capacity_kg }} kg
             </option>
           </select>
         </div>

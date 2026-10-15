@@ -92,18 +92,35 @@ class LogisticsController extends Controller
     public function storeVehicle(Request $request)
     {
         $validated = $request->validate([
-            'plate' => 'required|string|min:3|unique:vehicles,plate',
-            'type' => 'required|string',
-            'capacityKg' => 'required|numeric|min:10',
+            'plate' => 'nullable|string|min:3',
+            'plate_number' => 'nullable|string|min:3',
+            'type' => 'nullable|string',
+            'model' => 'nullable|string',
+            'capacityKg' => 'nullable|numeric|min:10',
+            'max_capacity_kg' => 'nullable|numeric|min:10',
             'driverName' => 'nullable|string',
+            'driver_name' => 'nullable|string',
         ]);
+
+        $plate = strtoupper(trim($validated['plate'] ?? $validated['plate_number'] ?? ''));
+        if (empty($plate)) {
+            return response()->json(['error' => 'Nomor polisi kendaraan wajib diisi.'], 422);
+        }
+
+        if (Vehicle::where('plate', $plate)->exists()) {
+            return response()->json(['error' => 'Nomor polisi kendaraan sudah terdaftar di sistem.'], 422);
+        }
+
+        $type = trim($validated['type'] ?? $validated['model'] ?? 'Armada Angkut');
+        $capacity = (float) ($validated['capacityKg'] ?? $validated['max_capacity_kg'] ?? 1000);
+        $driver = trim($validated['driverName'] ?? $validated['driver_name'] ?? '');
 
         $vehicle = Vehicle::create([
             'owner_id' => $request->user()->id,
-            'plate' => strtoupper($validated['plate']),
-            'type' => $validated['type'],
-            'capacity_kg' => $validated['capacityKg'],
-            'driver_name' => $validated['driverName'] ?? null,
+            'plate' => $plate,
+            'type' => $type,
+            'capacity_kg' => $capacity,
+            'driver_name' => $driver ?: null,
             'is_available' => true,
         ]);
 
@@ -194,8 +211,12 @@ class LogisticsController extends Controller
                 'vehicle_id' => $s->vehicle_id,
                 'vehicle' => $s->vehicle ? [
                     'id' => $s->vehicle->id,
+                    'plate' => $s->vehicle->plate,
                     'plate_number' => $s->vehicle->plate,
+                    'type' => $s->vehicle->type,
                     'model' => $s->vehicle->type,
+                    'capacity_kg' => (float) $s->vehicle->capacity_kg,
+                    'max_capacity_kg' => (float) $s->vehicle->capacity_kg,
                     'driver_name' => $s->vehicle->driver_name,
                     'driver_phone' => '-',
                 ] : null,
