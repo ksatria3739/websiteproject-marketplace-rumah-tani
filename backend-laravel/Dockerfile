@@ -4,6 +4,8 @@ FROM php:8.2-cli-alpine
 RUN apk add --no-cache \
     ca-certificates \
     mysql-client \
+    sqlite \
+    sqlite-dev \
     libpng-dev \
     libjpeg-turbo-dev \
     freetype-dev \
@@ -14,7 +16,7 @@ RUN apk add --no-cache \
     curl \
     && update-ca-certificates \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install pdo pdo_mysql mbstring zip gd bcmath
+    && docker-php-ext-install pdo pdo_mysql pdo_sqlite mbstring zip gd bcmath
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -29,8 +31,9 @@ RUN cp .env.example .env || true
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
 # Prepare directories and permissions
-RUN mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
-    && chmod -R 777 storage bootstrap/cache
+RUN mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache database \
+    && touch database/database.sqlite \
+    && chmod -R 777 storage bootstrap/cache database
 
 COPY docker-start.sh /docker-start.sh
 RUN chmod +x /docker-start.sh

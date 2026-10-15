@@ -1,4 +1,9 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+let baseApiUrl = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api').trim();
+baseApiUrl = baseApiUrl.replace(/\/+$/, '');
+if (!baseApiUrl.endsWith('/api')) {
+    baseApiUrl = `${baseApiUrl}/api`;
+}
+const API_URL = baseApiUrl;
 
 export async function request(endpoint, options = {}) {
     const token = localStorage.getItem('rt_token');

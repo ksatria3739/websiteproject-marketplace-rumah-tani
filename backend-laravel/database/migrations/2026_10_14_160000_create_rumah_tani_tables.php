@@ -21,7 +21,7 @@ return new class extends Migration
         // 2. Modify or update users table
         Schema::table('users', function (Blueprint $table) {
             $table->string('phone')->nullable()->after('password');
-            $table->enum('role', ['super_admin', 'admin_tengkulak', 'petani', 'pembeli'])->default('pembeli')->after('phone');
+            $table->enum('role', ['super_admin', 'admin', 'admin_tengkulak', 'petani', 'pembeli'])->default('pembeli')->after('phone');
             $table->enum('buyer_type', ['b2b', 'b2c'])->nullable()->after('role');
             $table->string('company_name')->nullable()->after('buyer_type');
             $table->foreignId('region_id')->nullable()->constrained('regions')->nullOnDelete()->after('company_name');

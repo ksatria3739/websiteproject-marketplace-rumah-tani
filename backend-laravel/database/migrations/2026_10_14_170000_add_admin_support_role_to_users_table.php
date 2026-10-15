@@ -10,11 +10,15 @@ return new class extends Migration
     public function up(): void
     {
         // Modify role column to support 'admin' (L3 Support Admin) alongside 'super_admin', 'admin_tengkulak', 'petani', 'pembeli'
-        DB::statement("ALTER TABLE users MODIFY COLUMN role ENUM('super_admin', 'admin', 'admin_tengkulak', 'petani', 'pembeli') NOT NULL DEFAULT 'pembeli'");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE users MODIFY COLUMN role ENUM('super_admin', 'admin', 'admin_tengkulak', 'petani', 'pembeli') NOT NULL DEFAULT 'pembeli'");
+        }
     }
 
     public function down(): void
     {
-        DB::statement("ALTER TABLE users MODIFY COLUMN role ENUM('super_admin', 'admin_tengkulak', 'petani', 'pembeli') NOT NULL DEFAULT 'pembeli'");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE users MODIFY COLUMN role ENUM('super_admin', 'admin_tengkulak', 'petani', 'pembeli') NOT NULL DEFAULT 'pembeli'");
+        }
     }
 };

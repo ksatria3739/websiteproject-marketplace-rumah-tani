@@ -23,9 +23,15 @@ fi
 # Link storage
 php artisan storage:link || true
 
-# Run database migrations if DB is configured
+# Run database migrations
 if [ -n "$DB_HOST" ] && [ "$DB_HOST" != "127.0.0.1" ] && [ "$DB_HOST" != "localhost" ]; then
-    echo ">> Running database migrations on $DB_HOST..."
+    echo ">> Running database migrations on cloud MySQL ($DB_HOST)..."
+    php artisan migrate --force --seed || true
+else
+    echo ">> Running self-contained SQLite database..."
+    mkdir -p database
+    touch database/database.sqlite
+    chmod 777 database/database.sqlite
     php artisan migrate --force --seed || true
 fi
 
