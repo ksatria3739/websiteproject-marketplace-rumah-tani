@@ -60,6 +60,13 @@
         🌾 Dukungan Stok L3 ({{ allCommodities.length }})
       </button>
       <button
+        class="btn btn-sm"
+        :class="activeTab === 'distribution' ? 'btn-primary' : 'btn-secondary'"
+        @click="switchTabToDistribution"
+      >
+        🚛 Pemantauan Distribusi ({{ shipments.length }})
+      </button>
+      <button
         v-if="auth.isSuperAdmin"
         class="btn btn-sm"
         :class="activeTab === 'settings' ? 'btn-primary' : 'btn-secondary'"
@@ -465,6 +472,220 @@
         </div>
       </form>
     </div>
+
+    <!-- TAB 5: PEMANTAUAN DISTRIBUSI & LOGISTIK -->
+    <div v-if="activeTab === 'distribution'">
+      <!-- Stats Summary -->
+      <div class="grid grid-4" style="margin-bottom: 1.5rem; gap: 1rem;">
+        <div class="card" style="border-left: 4px solid #3b82f6;">
+          <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Total Pengiriman</div>
+          <div style="font-size: 1.5rem; font-weight: 800; color: #1e3a8a; margin-top: 0.25rem;">
+            {{ shipments.length }}
+          </div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Seluruh rute nasional</div>
+        </div>
+
+        <div class="card" style="border-left: 4px solid #f59e0b;">
+          <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Dalam Perjalanan</div>
+          <div style="font-size: 1.5rem; font-weight: 800; color: #b45309; margin-top: 0.25rem;">
+            {{ activeShipmentsCount }}
+          </div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">In transit & armada jalan</div>
+        </div>
+
+        <div class="card" style="border-left: 4px solid #10b981;">
+          <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Tiba / Selesai</div>
+          <div style="font-size: 1.5rem; font-weight: 800; color: #047857; margin-top: 0.25rem;">
+            {{ deliveredShipmentsCount }}
+          </div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Diterima pemesan</div>
+        </div>
+
+        <div class="card" style="border-left: 4px solid #8b5cf6;">
+          <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Armada Terdaftar</div>
+          <div style="font-size: 1.5rem; font-weight: 800; color: #6d28d9; margin-top: 0.25rem;">
+            {{ vehicles.length }}
+          </div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Truk & armada aktif</div>
+        </div>
+      </div>
+
+      <!-- Controls & Filter -->
+      <div class="card" style="margin-bottom: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+          <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; flex: 1;">
+            <input
+              v-model="shipmentSearch"
+              class="input input-sm"
+              style="max-width: 280px;"
+              placeholder="Cari resi, wilayah, atau supir..."
+            />
+            <select v-model="shipmentFilterStatus" class="select select-sm" style="max-width: 200px;">
+              <option value="">-- Semua Status Logistik --</option>
+              <option value="preparing">Preparing (Menyiapkan)</option>
+              <option value="picked_up">Picked Up (Diambil)</option>
+              <option value="in_transit">In Transit (Perjalanan)</option>
+              <option value="arrived_hub">Arrived Hub (Tiba di Hub)</option>
+              <option value="out_for_delivery">Out for Delivery (Kurir Jalan)</option>
+              <option value="delivered">Delivered (Telah Sampai)</option>
+            </select>
+          </div>
+
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-secondary btn-sm" @click="loadShipments">
+              🔄 Segarkan Data
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Shipments List -->
+      <div v-if="loadingShipments" style="text-align: center; padding: 3rem 0;">
+        <p class="text-muted">Memuat data logistik distribusi nasional...</p>
+      </div>
+
+      <div v-else-if="filteredShipments.length === 0" class="card" style="text-align: center; padding: 3rem 0;">
+        <p class="text-muted">Tidak ada data pengiriman yang sesuai filter.</p>
+      </div>
+
+      <div v-else style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 2rem;">
+        <div v-for="s in filteredShipments" :key="s.id" class="card">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <span class="badge" :class="getShipmentBadge(s.status)">
+                  {{ formatShipmentStatus(s.status) }}
+                </span>
+                <span style="font-size: 0.8rem; color: var(--text-muted);">
+                  Order: <strong>{{ s.order_code }}</strong>
+                </span>
+              </div>
+              <h3 style="font-size: 1.15rem; font-weight: 700; margin-top: 0.35rem;">
+                Resi: <span style="font-family: monospace; color: #1e40af;">{{ s.tracking_code }}</span>
+              </h3>
+              <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.2rem;">
+                📍 Rute: <strong>{{ s.origin || s.origin_region?.name || '-' }}</strong> ➔ <strong>{{ s.destination || s.destination_region?.name || '-' }}</strong> • Muatan: <strong>{{ s.actual_weight_kg || s.total_weight_kg || 0 }} kg</strong>
+              </p>
+            </div>
+
+            <div style="text-align: right;">
+              <div v-if="s.vehicle || s.plate !== '-'" style="font-size: 0.85rem; font-weight: 600;">
+                🚛 {{ s.vehicle?.plate_number || s.plate }} ({{ s.vehicle?.model || 'Armada Angkut' }})
+                <div style="font-size: 0.75rem; color: var(--text-muted);">
+                  Driver: {{ s.vehicle?.driver_name || s.driver_name || '-' }}
+                </div>
+              </div>
+              <div v-else style="font-size: 0.85rem; color: #dc2626; font-weight: 600;">
+                ⚠️ Belum Ditugaskan Armada
+              </div>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div style="font-size: 0.75rem; color: var(--text-muted);">
+              Terakhir Diperbarui: {{ formatDateTime(s.updated_at) }}
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+              <button
+                class="btn btn-secondary btn-sm"
+                @click="openShipmentStatusModal(s)"
+              >
+                ✏️ Update Status Logistik
+              </button>
+              <router-link :to="`/track/${s.tracking_code}`" class="btn btn-primary btn-sm">
+                🗺️ Pantau di Peta →
+              </router-link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fleet Overview Section -->
+      <div class="card" style="margin-top: 1.5rem;">
+        <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.75rem;">
+          🚛 Armada Kendaraan Distribusi Terdaftar
+        </h3>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+          Seluruh kendaraan operasional logistik di bawah manajemen hub regional dan pusat.
+        </p>
+
+        <div v-if="vehicles.length === 0" style="text-align: center; padding: 2rem 0; color: var(--text-muted);">
+          Belum ada armada yang terdaftar.
+        </div>
+
+        <div v-else class="grid grid-3" style="gap: 1rem;">
+          <div v-for="v in vehicles" :key="v.id" class="card" style="background: #f8fafc; border: 1px solid var(--border);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <span style="font-weight: 700; font-size: 1rem; color: #1e3a8a;">{{ v.plate }}</span>
+              <span class="badge" :class="v.is_available ? 'badge-green' : 'badge-amber'">
+                {{ v.is_available ? 'Tersedia' : 'Dalam Tugas' }}
+              </span>
+            </div>
+            <p style="font-size: 0.85rem; margin-bottom: 0.25rem;">
+              Tipe: <strong>{{ v.type }}</strong>
+            </p>
+            <p style="font-size: 0.85rem; margin-bottom: 0.25rem;">
+              Kapasitas: <strong>{{ v.capacity_kg }} kg</strong>
+            </p>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">
+              Pengemudi: {{ v.driver_name || 'Belum Ditugaskan' }}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Update Status Pengiriman (Admin & Super Admin) -->
+    <div
+      v-if="modalShipmentStatus.show"
+      style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 1rem;"
+    >
+      <div class="card" style="width: 100%; max-width: 480px; background: #ffffff;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+          <h3 style="font-size: 1.15rem; font-weight: 800; color: #1e40af; margin: 0;">
+            🚚 Update Status Pengiriman
+          </h3>
+          <button class="btn btn-sm btn-secondary" @click="modalShipmentStatus.show = false">✕</button>
+        </div>
+
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+          Perbarui status perjalanan resi <strong>{{ modalShipmentStatus.shipment?.tracking_code }}</strong> secara real-time.
+        </p>
+
+        <form @submit.prevent="submitShipmentStatusUpdate">
+          <div class="form-group">
+            <label class="label">Status Baru</label>
+            <select v-model="modalShipmentStatus.status" class="select" required>
+              <option value="preparing">Preparing (Pengemasan di Petani/Hub)</option>
+              <option value="picked_up">Picked Up (Armada Menjemput Muatan)</option>
+              <option value="in_transit">In Transit (Perjalanan di Jalan Raya)</option>
+              <option value="arrived_hub">Arrived Hub (Tiba di Hub Transit Kota)</option>
+              <option value="out_for_delivery">Out for Delivery (Kurir Menuju Alamat)</option>
+              <option value="delivered">Delivered (Telah Diterima Pembeli)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="label">Catatan Perjalanan / Titik Posisi</label>
+            <input
+              v-model="modalShipmentStatus.note"
+              type="text"
+              class="input"
+              placeholder="Contoh: Melewati Gerbang Tol Pasteur, cuaca lancar"
+            />
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem;">
+            <button type="button" class="btn btn-secondary" @click="modalShipmentStatus.show = false">
+              Batal
+            </button>
+            <button type="submit" class="btn btn-primary" :disabled="isUpdatingShipment">
+              {{ isUpdatingShipment ? 'Menyimpan...' : 'Perbarui Status' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -496,6 +717,50 @@ const loadingAnalytics = ref(true);
 const loadingUsers = ref(false);
 const noticeMessage = ref('');
 const errorMessage = ref('');
+
+// Distribution & Logistics Monitoring State
+const shipments = ref([]);
+const vehicles = ref([]);
+const loadingShipments = ref(false);
+const shipmentSearch = ref('');
+const shipmentFilterStatus = ref('');
+const isUpdatingShipment = ref(false);
+
+const modalShipmentStatus = reactive({
+  show: false,
+  shipment: null,
+  status: 'in_transit',
+  note: '',
+});
+
+const activeShipmentsCount = computed(() => {
+  return shipments.value.filter((s) =>
+    ['preparing', 'picked_up', 'in_transit', 'arrived_hub', 'out_for_delivery'].includes(s.status)
+  ).length;
+});
+
+const deliveredShipmentsCount = computed(() => {
+  return shipments.value.filter((s) => s.status === 'delivered').length;
+});
+
+const filteredShipments = computed(() => {
+  let list = shipments.value;
+  if (shipmentFilterStatus.value) {
+    list = list.filter((s) => s.status === shipmentFilterStatus.value);
+  }
+  if (shipmentSearch.value) {
+    const q = shipmentSearch.value.toLowerCase();
+    list = list.filter((s) =>
+      (s.tracking_code && s.tracking_code.toLowerCase().includes(q)) ||
+      (s.order_code && s.order_code.toLowerCase().includes(q)) ||
+      (s.origin && s.origin.toLowerCase().includes(q)) ||
+      (s.destination && s.destination.toLowerCase().includes(q)) ||
+      (s.driver_name && s.driver_name.toLowerCase().includes(q)) ||
+      (s.plate && s.plate.toLowerCase().includes(q))
+    );
+  }
+  return list;
+});
 
 const getRoleBadge = (role) => {
   switch (role) {
@@ -677,10 +942,100 @@ const exportReport = (format) => {
   window.open(`http://127.0.0.1:8000/api/admin/reports/export?format=${format}&token=${token}`, '_blank');
 };
 
+const switchTabToDistribution = async () => {
+  activeTab.value = 'distribution';
+  await loadShipments();
+  await loadVehicles();
+};
+
+const loadShipments = async () => {
+  loadingShipments.value = true;
+  try {
+    const res = await api.get('/logistics/shipments');
+    shipments.value = Array.isArray(res) ? res : [];
+  } catch (err) {
+    console.error('Failed to load shipments:', err);
+  } finally {
+    loadingShipments.value = false;
+  }
+};
+
+const loadVehicles = async () => {
+  try {
+    const res = await api.get('/logistics/vehicles');
+    vehicles.value = Array.isArray(res) ? res : [];
+  } catch (err) {
+    console.error('Failed to load vehicles:', err);
+  }
+};
+
+const openShipmentStatusModal = (shipment) => {
+  modalShipmentStatus.shipment = shipment;
+  modalShipmentStatus.status = shipment.status;
+  modalShipmentStatus.note = '';
+  modalShipmentStatus.show = true;
+};
+
+const submitShipmentStatusUpdate = async () => {
+  if (!modalShipmentStatus.shipment) return;
+  isUpdatingShipment.value = true;
+  noticeMessage.value = '';
+  errorMessage.value = '';
+  try {
+    await api.patch(`/logistics/shipments/${modalShipmentStatus.shipment.id}/status`, {
+      status: modalShipmentStatus.status,
+      note: modalShipmentStatus.note || `Status diperbarui menjadi ${modalShipmentStatus.status} oleh Administrator`,
+    });
+    modalShipmentStatus.show = false;
+    noticeMessage.value = `Status pengiriman resi ${modalShipmentStatus.shipment.tracking_code} berhasil diperbarui!`;
+    await loadShipments();
+  } catch (err) {
+    errorMessage.value = err.message || 'Gagal memperbarui status pengiriman.';
+  } finally {
+    isUpdatingShipment.value = false;
+  }
+};
+
+const formatShipmentStatus = (status) => {
+  switch (status) {
+    case 'preparing': return 'Menyiapkan';
+    case 'picked_up': return 'Diambil Armada';
+    case 'in_transit': return 'Dalam Perjalanan';
+    case 'arrived_hub': return 'Tiba di Hub Transit';
+    case 'out_for_delivery': return 'Kurir Menuju Alamat';
+    case 'delivered': return 'Telah Sampai';
+    default: return status;
+  }
+};
+
+const getShipmentBadge = (status) => {
+  switch (status) {
+    case 'delivered': return 'badge-green';
+    case 'in_transit':
+    case 'out_for_delivery': return 'badge-blue';
+    case 'picked_up':
+    case 'arrived_hub': return 'badge-amber';
+    default: return 'badge-gray';
+  }
+};
+
+const formatDateTime = (iso) => {
+  if (!iso) return '-';
+  return new Date(iso).toLocaleString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
 onMounted(() => {
   loadAnalytics();
   loadUsers();
   loadAllCommodities();
+  loadShipments();
+  loadVehicles();
   if (auth.isSuperAdmin) {
     loadSettings();
   }

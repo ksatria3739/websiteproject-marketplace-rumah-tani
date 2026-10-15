@@ -145,4 +145,23 @@ class CatalogController extends Controller
 
         return response()->json($article);
     }
+
+    public function storeRegion(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:100|unique:regions,name',
+            'province' => 'required|string|max:100',
+            'lat' => 'nullable|numeric',
+            'lng' => 'nullable|numeric',
+        ]);
+
+        $region = Region::create([
+            'name' => trim($validated['name']),
+            'province' => trim($validated['province']),
+            'lat' => $validated['lat'] ?? -6.2088,
+            'lng' => $validated['lng'] ?? 106.8456,
+        ]);
+
+        return response()->json($region, 201);
+    }
 }

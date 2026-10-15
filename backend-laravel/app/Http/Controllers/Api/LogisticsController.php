@@ -82,7 +82,7 @@ class LogisticsController extends Controller
         $user = $request->user();
         $query = Vehicle::query();
 
-        if ($user->role !== 'super_admin') {
+        if (!in_array($user->role, ['super_admin', 'admin'])) {
             $query->where('owner_id', $user->id);
         }
 
@@ -115,7 +115,7 @@ class LogisticsController extends Controller
         $user = $request->user();
         $query = Route::with(['originRegion', 'destRegion']);
 
-        if ($user->role !== 'super_admin') {
+        if (!in_array($user->role, ['super_admin', 'admin'])) {
             $query->where('owner_id', $user->id);
         }
 

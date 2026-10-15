@@ -33,14 +33,100 @@ class DatabaseSeeder extends Seeder
             SystemSetting::updateOrCreate(['key' => $key], ['value' => $val]);
         }
 
-        // 2. Master Regions
+        // 2. Master Regions (Wilayah Asal Lahan Indonesia)
         $regionsData = [
-            ['name' => 'Bandung', 'province' => 'Jawa Barat', 'lat' => -6.9175, 'lng' => 107.6191],
+            // Jawa Barat
             ['name' => 'Garut', 'province' => 'Jawa Barat', 'lat' => -7.2279, 'lng' => 107.9087],
-            ['name' => 'Malang', 'province' => 'Jawa Timur', 'lat' => -7.9666, 'lng' => 112.6326],
+            ['name' => 'Bandung', 'province' => 'Jawa Barat', 'lat' => -6.9175, 'lng' => 107.6191],
+            ['name' => 'Cianjur', 'province' => 'Jawa Barat', 'lat' => -6.8222, 'lng' => 107.1394],
+            ['name' => 'Sukabumi', 'province' => 'Jawa Barat', 'lat' => -6.9277, 'lng' => 106.9300],
+            ['name' => 'Bogor', 'province' => 'Jawa Barat', 'lat' => -6.5971, 'lng' => 106.8060],
+            ['name' => 'Kuningan', 'province' => 'Jawa Barat', 'lat' => -6.9765, 'lng' => 108.4839],
+            ['name' => 'Subang', 'province' => 'Jawa Barat', 'lat' => -6.5716, 'lng' => 107.7587],
+            ['name' => 'Indramayu', 'province' => 'Jawa Barat', 'lat' => -6.3276, 'lng' => 108.3200],
+            ['name' => 'Tasikmalaya', 'province' => 'Jawa Barat', 'lat' => -7.3274, 'lng' => 108.2207],
+            ['name' => 'Majalengka', 'province' => 'Jawa Barat', 'lat' => -6.8361, 'lng' => 108.2275],
+            ['name' => 'Ciamis', 'province' => 'Jawa Barat', 'lat' => -7.3256, 'lng' => 108.3533],
+
+            // Jawa Tengah & DIY
+            ['name' => 'Brebes', 'province' => 'Jawa Tengah', 'lat' => -6.8703, 'lng' => 109.0435],
+            ['name' => 'Wonosobo (Dieng)', 'province' => 'Jawa Tengah', 'lat' => -7.3633, 'lng' => 109.9000],
             ['name' => 'Magelang', 'province' => 'Jawa Tengah', 'lat' => -7.4797, 'lng' => 110.2177],
-            ['name' => 'Jakarta', 'province' => 'DKI Jakarta', 'lat' => -6.2088, 'lng' => 106.8456],
+            ['name' => 'Boyolali', 'province' => 'Jawa Tengah', 'lat' => -7.5361, 'lng' => 110.5947],
+            ['name' => 'Temanggung', 'province' => 'Jawa Tengah', 'lat' => -7.3167, 'lng' => 110.1667],
+            ['name' => 'Banyumas', 'province' => 'Jawa Tengah', 'lat' => -7.5144, 'lng' => 109.2942],
+            ['name' => 'Klaten', 'province' => 'Jawa Tengah', 'lat' => -7.7058, 'lng' => 110.6014],
+            ['name' => 'Semarang', 'province' => 'Jawa Tengah', 'lat' => -7.0051, 'lng' => 110.4381],
+            ['name' => 'Pati', 'province' => 'Jawa Tengah', 'lat' => -6.7558, 'lng' => 111.0378],
+            ['name' => 'Sleman', 'province' => 'DI Yogyakarta', 'lat' => -7.7167, 'lng' => 110.3556],
+            ['name' => 'Bantul', 'province' => 'DI Yogyakarta', 'lat' => -7.8897, 'lng' => 110.3289],
+            ['name' => 'Kulon Progo', 'province' => 'DI Yogyakarta', 'lat' => -7.7713, 'lng' => 110.1706],
+
+            // Jawa Timur
+            ['name' => 'Malang', 'province' => 'Jawa Timur', 'lat' => -7.9666, 'lng' => 112.6326],
+            ['name' => 'Batu', 'province' => 'Jawa Timur', 'lat' => -7.8712, 'lng' => 112.5270],
+            ['name' => 'Banyuwangi', 'province' => 'Jawa Timur', 'lat' => -8.2192, 'lng' => 114.3692],
+            ['name' => 'Kediri', 'province' => 'Jawa Timur', 'lat' => -7.8480, 'lng' => 112.0178],
+            ['name' => 'Probolinggo', 'province' => 'Jawa Timur', 'lat' => -7.7543, 'lng' => 113.2159],
+            ['name' => 'Jember', 'province' => 'Jawa Timur', 'lat' => -8.1845, 'lng' => 113.6681],
+            ['name' => 'Blitar', 'province' => 'Jawa Timur', 'lat' => -8.0983, 'lng' => 112.1681],
+            ['name' => 'Pasuruan', 'province' => 'Jawa Timur', 'lat' => -7.6453, 'lng' => 112.9075],
             ['name' => 'Surabaya', 'province' => 'Jawa Timur', 'lat' => -7.2575, 'lng' => 112.7521],
+            ['name' => 'Nganjuk', 'province' => 'Jawa Timur', 'lat' => -7.6053, 'lng' => 111.9036],
+
+            // DKI & Banten
+            ['name' => 'Jakarta', 'province' => 'DKI Jakarta', 'lat' => -6.2088, 'lng' => 106.8456],
+            ['name' => 'Lebak', 'province' => 'Banten', 'lat' => -6.5591, 'lng' => 106.2505],
+            ['name' => 'Pandeglang', 'province' => 'Banten', 'lat' => -6.3087, 'lng' => 106.1065],
+            ['name' => 'Serang', 'province' => 'Banten', 'lat' => -6.1104, 'lng' => 106.1640],
+
+            // Sumatera
+            ['name' => 'Karo (Berastagi)', 'province' => 'Sumatera Utara', 'lat' => 3.1873, 'lng' => 98.5088],
+            ['name' => 'Simalungun', 'province' => 'Sumatera Utara', 'lat' => 2.9667, 'lng' => 99.0667],
+            ['name' => 'Deli Serdang', 'province' => 'Sumatera Utara', 'lat' => 3.5186, 'lng' => 98.7107],
+            ['name' => 'Medan', 'province' => 'Sumatera Utara', 'lat' => 3.5952, 'lng' => 98.6722],
+            ['name' => 'Agam (Bukittinggi)', 'province' => 'Sumatera Barat', 'lat' => -0.2520, 'lng' => 100.1667],
+            ['name' => 'Tanah Datar', 'province' => 'Sumatera Barat', 'lat' => -0.4578, 'lng' => 100.5847],
+            ['name' => 'Solok (Alahan Panjang)', 'province' => 'Sumatera Barat', 'lat' => -0.9833, 'lng' => 100.7500],
+            ['name' => 'Padang', 'province' => 'Sumatera Barat', 'lat' => -0.9471, 'lng' => 100.4172],
+            ['name' => 'Aceh Tengah (Gayo)', 'province' => 'Aceh', 'lat' => 4.5424, 'lng' => 96.8465],
+            ['name' => 'Bener Meriah', 'province' => 'Aceh', 'lat' => 4.7333, 'lng' => 96.8833],
+            ['name' => 'Kerinci', 'province' => 'Jambi', 'lat' => -2.0583, 'lng' => 101.5583],
+            ['name' => 'Pagar Alam', 'province' => 'Sumatera Selatan', 'lat' => -4.0278, 'lng' => 103.2667],
+            ['name' => 'Palembang', 'province' => 'Sumatera Selatan', 'lat' => -2.9761, 'lng' => 104.7754],
+            ['name' => 'Lampung Barat', 'province' => 'Lampung', 'lat' => -5.1436, 'lng' => 104.1925],
+            ['name' => 'Bandar Lampung', 'province' => 'Lampung', 'lat' => -5.4292, 'lng' => 105.2625],
+
+            // Bali & Nusa Tenggara
+            ['name' => 'Tabanan', 'province' => 'Bali', 'lat' => -8.5414, 'lng' => 115.1247],
+            ['name' => 'Bangli (Kintamani)', 'province' => 'Bali', 'lat' => -8.2436, 'lng' => 115.3347],
+            ['name' => 'Buleleng (Bedugul)', 'province' => 'Bali', 'lat' => -8.2753, 'lng' => 115.1633],
+            ['name' => 'Denpasar', 'province' => 'Bali', 'lat' => -8.6705, 'lng' => 115.2126],
+            ['name' => 'Lombok Timur (Sembalun)', 'province' => 'Nusa Tenggara Barat', 'lat' => -8.3583, 'lng' => 116.5333],
+            ['name' => 'Bima', 'province' => 'Nusa Tenggara Barat', 'lat' => -8.4536, 'lng' => 118.7275],
+            ['name' => 'Manggarai (Ruteng)', 'province' => 'Nusa Tenggara Timur', 'lat' => -8.6136, 'lng' => 120.4686],
+            ['name' => 'Kupang', 'province' => 'Nusa Tenggara Timur', 'lat' => -10.1772, 'lng' => 123.6070],
+
+            // Sulawesi
+            ['name' => 'Enrekang', 'province' => 'Sulawesi Selatan', 'lat' => -3.5647, 'lng' => 119.7744],
+            ['name' => 'Gowa (Malino)', 'province' => 'Sulawesi Selatan', 'lat' => -5.2500, 'lng' => 119.8500],
+            ['name' => 'Tana Toraja', 'province' => 'Sulawesi Selatan', 'lat' => -3.0906, 'lng' => 119.8667],
+            ['name' => 'Makassar', 'province' => 'Sulawesi Selatan', 'lat' => -5.1477, 'lng' => 119.4327],
+            ['name' => 'Tomohon', 'province' => 'Sulawesi Utara', 'lat' => 1.3283, 'lng' => 124.8419],
+            ['name' => 'Minahasa', 'province' => 'Sulawesi Utara', 'lat' => 1.2500, 'lng' => 124.9167],
+            ['name' => 'Sigi', 'province' => 'Sulawesi Tengah', 'lat' => -1.3850, 'lng' => 119.9639],
+
+            // Kalimantan
+            ['name' => 'Pontianak', 'province' => 'Kalimantan Barat', 'lat' => -0.0263, 'lng' => 109.3425],
+            ['name' => 'Banjarbaru', 'province' => 'Kalimantan Selatan', 'lat' => -3.4406, 'lng' => 114.8306],
+            ['name' => 'Tanah Laut', 'province' => 'Kalimantan Selatan', 'lat' => -3.7942, 'lng' => 114.7739],
+            ['name' => 'Kutai Kartanegara', 'province' => 'Kalimantan Timur', 'lat' => -0.4408, 'lng' => 116.9897],
+            ['name' => 'Samarinda', 'province' => 'Kalimantan Timur', 'lat' => -0.5022, 'lng' => 117.1536],
+
+            // Maluku & Papua
+            ['name' => 'Ambon', 'province' => 'Maluku', 'lat' => -3.6547, 'lng' => 128.1906],
+            ['name' => 'Jayapura', 'province' => 'Papua', 'lat' => -2.5916, 'lng' => 140.6690],
+            ['name' => 'Jayawijaya (Wamena)', 'province' => 'Papua Pegunungan', 'lat' => -4.0983, 'lng' => 138.9439],
         ];
         $regions = [];
         foreach ($regionsData as $rd) {

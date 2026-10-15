@@ -85,10 +85,18 @@ class KycController extends Controller
 
     public function review(Request $request, $userId)
     {
-        $request->validate([
-            'approve' => 'required|boolean',
-            'note' => 'nullable|string',
-        ]);
+        $decision = $request->input('decision');
+        $status = $request->input('status');
+        $approve = $request->input('approve');
+
+        $isApproved = false;
+        if (!is_null($approve)) {
+            $isApproved = filter_var($approve, FILTER_VALIDATE_BOOLEAN);
+        } elseif ($decision) {
+            $isApproved = in_array(strtolower($decision), ['approve', 'approved', 'true', '1']);
+        } elseif ($status) {
+            $isApproved = in_array(strtolower($status), ['approve', 'approved', 'true', '1']);
+        }
 
         $reviewer = $request->user();
         $targetUser = User::findOrFail($userId);
@@ -99,8 +107,8 @@ class KycController extends Controller
             }
         }
 
-        $targetUser->kyc_status = $request->approve ? 'approved' : 'rejected';
-        $targetUser->kyc_note = $request->note ?? null;
+        $targetUser->kyc_status = $isApproved ? 'approved' : 'rejected';
+        $targetUser->kyc_note = $request->input('note') ?? ($isApproved ? 'Verifikasi disetujui' : 'Dokumen tidak memenuhi persyaratan');
         $targetUser->save();
 
         AuditLog::create([

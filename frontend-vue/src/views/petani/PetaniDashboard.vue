@@ -17,13 +17,42 @@
 
         <div style="text-align: right;">
           <div style="font-size: 0.8rem; opacity: 0.85;">Status Verifikasi KYC:</div>
-          <span
-            class="badge"
-            :class="auth.user?.kyc_status === 'verified' ? 'badge-green' : 'badge-amber'"
-            style="font-size: 0.85rem; margin-top: 0.25rem;"
-          >
-            {{ auth.user?.kyc_status === 'verified' ? '✓ Terverifikasi' : '⏳ Menunggu Validasi' }}
-          </span>
+          <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-top: 0.25rem; flex-wrap: wrap;">
+            <span
+              class="badge"
+              :class="{
+                'badge-green': auth.user?.kyc_status === 'approved' || auth.user?.kyc_status === 'verified',
+                'badge-amber': auth.user?.kyc_status === 'pending',
+                'badge-rose': auth.user?.kyc_status === 'rejected',
+                'badge-slate': !auth.user?.kyc_status || auth.user?.kyc_status === 'unsubmitted'
+              }"
+              style="font-size: 0.85rem;"
+            >
+              <template v-if="auth.user?.kyc_status === 'approved' || auth.user?.kyc_status === 'verified'">
+                ✓ Terverifikasi (KYC Valid)
+              </template>
+              <template v-else-if="auth.user?.kyc_status === 'pending'">
+                ⏳ Menunggu Validasi Administrator
+              </template>
+              <template v-else-if="auth.user?.kyc_status === 'rejected'">
+                ✕ Verifikasi Ditolak
+              </template>
+              <template v-else>
+                ⚠️ Belum Mengajukan KYC
+              </template>
+            </span>
+            <button
+              v-if="auth.user?.kyc_status !== 'approved' && auth.user?.kyc_status !== 'verified'"
+              class="btn btn-sm"
+              style="font-size: 0.75rem; padding: 0.2rem 0.6rem; background: rgba(255,255,255,0.25); color: #ffffff; border: 1px solid rgba(255,255,255,0.4);"
+              @click="openKycModal = true"
+            >
+              {{ auth.user?.kyc_status === 'rejected' ? 'Ajukan Ulang' : 'Upload Berkas' }}
+            </button>
+          </div>
+          <div v-if="auth.user?.kyc_note && auth.user?.kyc_status === 'rejected'" style="font-size: 0.75rem; color: #fca5a5; margin-top: 0.25rem;">
+            Catatan: {{ auth.user?.kyc_note }}
+          </div>
         </div>
       </div>
     </div>
@@ -375,9 +404,46 @@
           </div>
 
           <div class="form-group">
-            <label class="label">Wilayah Asal Lahan</label>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+              <label class="label" style="margin-bottom: 0;">Wilayah Asal Lahan</label>
+              <button
+                type="button"
+                class="btn btn-sm"
+                style="font-size: 0.72rem; padding: 0.15rem 0.5rem; background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;"
+                @click="showAddRegion = !showAddRegion"
+              >
+                {{ showAddRegion ? '✕ Batal' : '➕ Input Wilayah Baru' }}
+              </button>
+            </div>
+
+            <!-- Form Input Wilayah Baru Mandiri -->
+            <div v-if="showAddRegion" class="card" style="margin-bottom: 0.75rem; padding: 0.75rem; background: #f0fdf4; border: 1px solid #bbf7d0;">
+              <div style="font-weight: 700; font-size: 0.82rem; color: #166534; margin-bottom: 0.4rem;">
+                📍 Daftarkan Asal Lahan / Wilayah Baru
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <div>
+                  <label class="label" style="font-size: 0.72rem;">Nama Wilayah / Kab</label>
+                  <input v-model="newRegionForm.name" class="input input-sm" placeholder="Misal: Temanggung" />
+                </div>
+                <div>
+                  <label class="label" style="font-size: 0.72rem;">Provinsi</label>
+                  <input v-model="newRegionForm.province" class="input input-sm" placeholder="Misal: Jawa Tengah" />
+                </div>
+              </div>
+              <button
+                type="button"
+                class="btn btn-sm btn-primary"
+                style="font-size: 0.75rem; padding: 0.25rem 0.75rem;"
+                :disabled="isSubmittingRegion || !newRegionForm.name || !newRegionForm.province"
+                @click="submitNewRegion"
+              >
+                {{ isSubmittingRegion ? 'Menyimpan...' : '✓ Simpan & Pilih Wilayah' }}
+              </button>
+            </div>
+
             <select v-model="newCommodity.region_id" class="select" required>
-              <option value="" disabled>-- Pilih Wilayah --</option>
+              <option value="" disabled>-- Pilih Wilayah ({{ regions.length }} Wilayah Tersedia) --</option>
               <option v-for="reg in regions" :key="reg.id" :value="reg.id">
                 {{ reg.name }} ({{ reg.province }})
               </option>
@@ -554,6 +620,56 @@
         </div>
       </div>
     </div>
+
+    <!-- Modal Upload Berkas KYC Petani -->
+    <div
+      v-if="openKycModal"
+      style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 1rem;"
+    >
+      <div class="card" style="width: 100%; max-width: 480px; background: #ffffff;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+          <h3 style="font-size: 1.2rem; font-weight: 800; color: #166534; margin: 0;">
+            📋 Verifikasi KYC Petani
+          </h3>
+          <button class="btn btn-sm btn-secondary" @click="openKycModal = false">✕</button>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+          Unggah dokumen resmi (Foto KTP, Kartu Kelompok Tani, atau Surat Kepemilikan Lahan) agar status akun terverifikasi dan hasil panen dapat dikurasi oleh distributor.
+        </p>
+
+        <form @submit.prevent="submitKycDocuments">
+          <div class="form-group">
+            <label class="label">Jenis Berkas Dokumen</label>
+            <select v-model="kycForm.docType" class="select">
+              <option value="ktp">Kartu Tanda Penduduk (KTP)</option>
+              <option value="kartu_kelompok_tani">Kartu Keanggotaan Kelompok Tani</option>
+              <option value="surat_lahan">Surat Kepemilikan / Sewa Lahan</option>
+              <option value="sertifikat_organik">Sertifikat Pertanian Organik</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="label">Pilih File (JPG, PNG, atau PDF max 5MB)</label>
+            <input
+              type="file"
+              accept="image/*,application/pdf"
+              class="input"
+              required
+              @change="handleKycFileChange"
+            />
+          </div>
+
+          <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.25rem;">
+            <button type="button" class="btn btn-secondary" @click="openKycModal = false">
+              Batal
+            </button>
+            <button type="submit" class="btn btn-primary" :disabled="isSubmittingKyc">
+              {{ isSubmittingKyc ? 'Mengunggah Berkas...' : 'Kirim Berkas Verifikasi' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -580,6 +696,17 @@ const stockUpdating = ref(null);
 
 const noticeMessage = ref('');
 const errorMessage = ref('');
+
+// Wilayah Baru Mandiri State
+const showAddRegion = ref(false);
+const isSubmittingRegion = ref(false);
+const newRegionForm = reactive({ name: '', province: '' });
+
+// KYC Modal & Submission State
+const openKycModal = ref(false);
+const isSubmittingKyc = ref(false);
+const kycFile = ref(null);
+const kycForm = reactive({ docType: 'ktp' });
 
 // Real-Time Image Upload State
 const fileInputRef = ref(null);
@@ -854,7 +981,58 @@ const submitNewCommodity = async () => {
   }
 };
 
+const handleKycFileChange = (e) => {
+  kycFile.value = e.target.files[0] || null;
+};
+
+const submitKycDocuments = async () => {
+  if (!kycFile.value) return;
+  try {
+    isSubmittingKyc.value = true;
+    errorMessage.value = '';
+    const fd = new FormData();
+    fd.append('files[]', kycFile.value);
+    fd.append('docTypes[]', kycForm.docType);
+
+    await api.post('/kyc/documents', fd);
+    noticeMessage.value = 'Dokumen KYC berhasil diajukan! Menunggu peninjauan Administrator.';
+    openKycModal.value = false;
+    kycFile.value = null;
+    await auth.fetchMe();
+  } catch (err) {
+    errorMessage.value = err.message || 'Gagal mengajukan berkas KYC.';
+  } finally {
+    isSubmittingKyc.value = false;
+  }
+};
+
+const submitNewRegion = async () => {
+  if (!newRegionForm.name || !newRegionForm.province) return;
+  try {
+    isSubmittingRegion.value = true;
+    errorMessage.value = '';
+    const res = await api.post('/regions', {
+      name: newRegionForm.name.trim(),
+      province: newRegionForm.province.trim(),
+    });
+    regions.value.push(res);
+    regions.value.sort((a, b) => a.name.localeCompare(b.name));
+    newCommodity.region_id = res.id;
+    showAddRegion.value = false;
+    newRegionForm.name = '';
+    newRegionForm.province = '';
+    noticeMessage.value = `Wilayah "${res.name} (${res.province})" berhasil ditambahkan dan dipilih!`;
+    setTimeout(() => { noticeMessage.value = ''; }, 4000);
+  } catch (err) {
+    errorMessage.value = err.message || 'Gagal menambahkan wilayah baru.';
+    setTimeout(() => { errorMessage.value = ''; }, 4000);
+  } finally {
+    isSubmittingRegion.value = false;
+  }
+};
+
 onMounted(() => {
+  auth.fetchMe();
   loadInventory();
   loadOrders();
   loadNegotiations();

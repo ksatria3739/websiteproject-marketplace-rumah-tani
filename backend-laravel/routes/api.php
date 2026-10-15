@@ -52,6 +52,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // KYC Document Upload (Petani, Tengkulak, Pembeli B2B)
     Route::post('/kyc/documents', [KycController::class, 'uploadDocuments']);
 
+    // Region Creation (Input Asal Wilayah Lahan Baru)
+    Route::post('/regions', [CatalogController::class, 'storeRegion']);
+
     // Orders (all authenticated roles can view their scoped orders)
     Route::get('/orders', [CommerceController::class, 'listOrders']);
     Route::get('/orders/{id}', [CommerceController::class, 'orderDetail']);
