@@ -1,0 +1,42 @@
+# Master .gitignore for Marketplace Rumah Tani (Monorepo)
+
+# Dependencies
+node_modules/
+**/node_modules/
+vendor/
+**/vendor/
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Build & compiled assets
+dist/
+**/dist/
+dist-ssr/
+public/build/
+public/hot/
+public/storage/
+
+# Laravel storage, cache & temporary files
+**/storage/logs/*.log
+**/storage/framework/cache/data/*
+**/storage/framework/sessions/*
+**/storage/framework/views/*
+!**/storage/framework/cache/data/.gitignore
+!**/storage/framework/sessions/.gitignore
+!**/storage/framework/views/.gitignore
+!**/storage/logs/.gitignore
+**/storage/*.key
+
+# IDE & OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.log
