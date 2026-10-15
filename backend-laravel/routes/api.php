@@ -41,6 +41,9 @@ Route::get('/payment/channels', [CommerceController::class, 'paymentChannels']);
 Route::post('/webhooks/payment', [CommerceController::class, 'webhook']);
 Route::post('/webhooks/tripay', [CommerceController::class, 'tripayWebhook']);
 
+// Public stream endpoint for uploaded KYC document files
+Route::get('/kyc/documents/{id}/file', [KycController::class, 'viewDocumentFile']);
+
 // ==========================================
 // 2. AUTHENTICATED ENDPOINTS (Sanctum Token)
 // ==========================================

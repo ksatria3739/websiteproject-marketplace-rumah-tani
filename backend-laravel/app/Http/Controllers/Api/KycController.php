@@ -74,13 +74,38 @@ class KycController extends Controller
                 'region' => $u->region ? $u->region->name : null,
                 'created_at' => $u->created_at,
                 'docs' => $u->kycDocuments->map(fn($d) => [
+                    'id' => $d->id,
                     'type' => $d->doc_type,
                     'file' => $d->file_path,
+                    'url' => url('/storage/' . $d->file_path),
+                    'created_at' => $d->created_at,
                 ]),
             ];
         });
 
         return response()->json($formatted);
+    }
+
+    public function viewDocumentFile($id)
+    {
+        $doc = KycDocument::findOrFail($id);
+        $filePath = storage_path('app/public/' . $doc->file_path);
+
+        if (!file_exists($filePath)) {
+            $altPath = storage_path('app/' . $doc->file_path);
+            if (file_exists($altPath)) {
+                $filePath = $altPath;
+            } else {
+                return response()->json(['error' => 'Berkas tidak ditemukan pada server.'], 404);
+            }
+        }
+
+        $mimeType = mime_content_type($filePath) ?: 'application/octet-stream';
+
+        return response()->file($filePath, [
+            'Content-Type' => $mimeType,
+            'Content-Disposition' => 'inline; filename="' . basename($filePath) . '"',
+        ]);
     }
 
     public function review(Request $request, $userId)

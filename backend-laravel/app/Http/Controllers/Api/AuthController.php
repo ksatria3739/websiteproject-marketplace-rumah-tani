@@ -18,23 +18,25 @@ class AuthController extends Controller
             'password' => 'required|string|min:8',
             'name' => 'required|string|min:2',
             'phone' => 'nullable|string',
-            'role' => ['required', Rule::in(['petani', 'pembeli'])],
+            'role' => ['required', Rule::in(['petani', 'pembeli', 'admin_tengkulak', 'tengkulak'])],
             'buyer_type' => ['nullable', Rule::in(['b2b', 'b2c'])],
             'company_name' => 'nullable|string',
             'region_id' => 'nullable|exists:regions,id',
             'address' => 'nullable|string',
         ]);
 
-        if ($validated['role'] === 'pembeli' && empty($validated['buyer_type'])) {
+        $role = $validated['role'] === 'tengkulak' ? 'admin_tengkulak' : $validated['role'];
+
+        if ($role === 'pembeli' && empty($validated['buyer_type'])) {
             return response()->json(['error' => 'buyer_type is required for pembeli'], 422);
         }
 
-        if ($validated['role'] === 'petani' && empty($validated['region_id'])) {
+        if ($role === 'petani' && empty($validated['region_id'])) {
             return response()->json(['error' => 'region_id is required for petani'], 422);
         }
 
-        // B2C buyers auto-approved; Petani and B2B require KYC approval
-        $kycStatus = ($validated['role'] === 'pembeli' && ($validated['buyer_type'] ?? '') === 'b2c')
+        // B2C buyers and admin_tengkulak auto-approved; Petani and B2B require KYC approval
+        $kycStatus = ($role === 'admin_tengkulak' || ($role === 'pembeli' && ($validated['buyer_type'] ?? '') === 'b2c'))
             ? 'approved'
             : 'unsubmitted';
 
@@ -43,7 +45,7 @@ class AuthController extends Controller
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'phone' => $validated['phone'] ?? null,
-            'role' => $validated['role'],
+            'role' => $role,
             'buyer_type' => $validated['buyer_type'] ?? null,
             'company_name' => $validated['company_name'] ?? null,
             'region_id' => $validated['region_id'] ?? null,
@@ -63,9 +65,11 @@ class AuthController extends Controller
                 'role' => $user->role,
                 'kyc_status' => $user->kyc_status,
                 'buyer_type' => $user->buyer_type,
+                'company_name' => $user->company_name,
                 'region_id' => $user->region_id,
             ],
             'access_token' => $token,
+            'token' => $token,
             'token_type' => 'Bearer',
         ], 201);
     }

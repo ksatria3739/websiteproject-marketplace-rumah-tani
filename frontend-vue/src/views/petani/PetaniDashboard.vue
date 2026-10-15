@@ -93,7 +93,7 @@
         :class="activeTab === 'add-harvest' ? 'btn-primary' : 'btn-secondary'"
         @click="activeTab = 'add-harvest'"
       >
-        + Input Panen Baru
+        <span v-if="!isKycApproved">🔒 </span>+ Input Panen Baru
       </button>
     </div>
 
@@ -107,8 +107,11 @@
         <p style="font-size: 1.1rem; color: var(--text-muted); margin-bottom: 1rem;">
           Anda belum menginput komoditas hasil panen.
         </p>
-        <button class="btn btn-primary" @click="activeTab = 'add-harvest'">
+        <button v-if="isKycApproved" class="btn btn-primary" @click="activeTab = 'add-harvest'">
           + Mulai Input Hasil Panen
+        </button>
+        <button v-else class="btn btn-primary" style="background: #f59e0b; border-color: #d97706;" @click="openKycModal = true">
+          🔒 Verifikasi KYC Dahulu Untuk Menambahkan Panen
         </button>
       </div>
 
@@ -376,11 +379,55 @@
 
     <!-- TAB 3: ADD NEW HARVEST COMMODITY -->
     <div v-if="activeTab === 'add-harvest'" class="card" style="max-width: 700px; margin: 0 auto;">
-      <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem;">
-        Formulir Input Hasil Panen Baru
-      </h2>
+      <!-- Guard if KYC is not verified -->
+      <div v-if="!isKycApproved" style="text-align: center; padding: 2.5rem 1.5rem; background: #fffbeb; border: 2px dashed #f59e0b; border-radius: var(--radius);">
+        <div style="font-size: 3.5rem; margin-bottom: 1rem;">🔒</div>
+        <h2 style="font-size: 1.35rem; font-weight: 800; color: #92400e; margin-bottom: 0.5rem;">
+          Verifikasi KYC Diperlukan
+        </h2>
+        <p style="font-size: 0.95rem; color: #78350f; max-width: 520px; margin: 0 auto 1.5rem auto; line-height: 1.5;">
+          Sesuai regulasi ekosistem Rumah Tani, <strong>petani diwajibkan menyelesaikan verifikasi identitas (KYC)</strong> dan disetujui oleh tim verifikator sebelum dapat menambahkan komoditas hasil panen ke katalog pasar.
+        </p>
 
-      <form @submit.prevent="submitNewCommodity">
+        <div style="margin-bottom: 1.5rem;">
+          <span
+            class="badge"
+            :class="{
+              'badge-amber': auth.user?.kyc_status === 'pending',
+              'badge-rose': auth.user?.kyc_status === 'rejected',
+              'badge-slate': !auth.user?.kyc_status || auth.user?.kyc_status === 'unsubmitted'
+            }"
+            style="font-size: 0.95rem; padding: 0.4rem 1rem;"
+          >
+            Status Saat Ini: {{
+              auth.user?.kyc_status === 'pending'
+                ? '⏳ Menunggu Validasi Administrator'
+                : (auth.user?.kyc_status === 'rejected' ? '✕ Verifikasi Ditolak' : '⚠️ Belum Mengajukan KYC')
+            }}
+          </span>
+        </div>
+
+        <div v-if="auth.user?.kyc_note && auth.user?.kyc_status === 'rejected'" class="alert alert-error" style="max-width: 480px; margin: 0 auto 1.5rem auto; text-align: left; font-size: 0.85rem;">
+          <strong>Alasan Penolakan:</strong> {{ auth.user?.kyc_note }}
+        </div>
+
+        <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+          <button class="btn btn-primary" style="padding: 0.6rem 1.5rem; font-weight: 700;" @click="openKycModal = true">
+            📄 {{ auth.user?.kyc_status === 'rejected' ? 'Ajukan Ulang Berkas KYC' : (auth.user?.kyc_status === 'pending' ? 'Periksa / Upload Tambahan Berkas' : 'Unggah Dokumen KYC Sekarang') }}
+          </button>
+          <button class="btn btn-secondary" @click="activeTab = 'inventory'">
+            Kembali ke Manajemen Panen
+          </button>
+        </div>
+      </div>
+
+      <!-- Actual Form (Only if KYC is approved) -->
+      <div v-else>
+        <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem;">
+          Formulir Input Hasil Panen Baru
+        </h2>
+
+        <form @submit.prevent="submitNewCommodity">
         <div class="form-group">
           <label class="label">Nama Komoditas</label>
           <input
@@ -571,6 +618,7 @@
           </button>
         </div>
       </form>
+      </div>
     </div>
 
     <!-- Custom Stock Adjustment Modal -->
@@ -674,11 +722,16 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useAuthStore } from '../../stores/auth';
 import { api, idr, resolveImageUrl } from '../../services/api';
 
 const auth = useAuthStore();
+
+const isKycApproved = computed(() => {
+  const status = auth.user?.kyc_status;
+  return status === 'approved' || status === 'verified';
+});
 
 const activeTab = ref('inventory');
 const commodities = ref([]);
@@ -947,6 +1000,10 @@ const respondNego = async (id, status) => {
 };
 
 const submitNewCommodity = async () => {
+  if (!isKycApproved.value) {
+    errorMessage.value = 'Akses Ditolak: Anda wajib menyelesaikan verifikasi KYC terlebih dahulu sebelum dapat menambahkan komoditas hasil panen.';
+    return;
+  }
   submittingCommodity.value = true;
   noticeMessage.value = '';
   errorMessage.value = '';

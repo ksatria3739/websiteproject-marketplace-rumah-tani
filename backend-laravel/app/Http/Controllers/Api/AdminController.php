@@ -141,7 +141,7 @@ class AdminController extends Controller
 
     public function listUsers(Request $request)
     {
-        $users = User::with('region')
+        $users = User::with(['region', 'kycDocuments'])
             ->latest()
             ->take(500)
             ->get()
@@ -149,14 +149,25 @@ class AdminController extends Controller
                 'id' => $u->id,
                 'email' => $u->email,
                 'full_name' => $u->name,
+                'name' => $u->name,
+                'phone' => $u->phone,
+                'address' => $u->address,
                 'role' => $u->role,
                 'buyer_type' => $u->buyer_type,
                 'company_name' => $u->company_name,
                 'region_id' => $u->region_id,
                 'region' => $u->region ? $u->region->name : null,
                 'kyc_status' => $u->kyc_status,
+                'kyc_note' => $u->kyc_note,
                 'is_active' => $u->is_active,
                 'created_at' => $u->created_at,
+                'docs' => $u->kycDocuments->map(fn($d) => [
+                    'id' => $d->id,
+                    'type' => $d->doc_type,
+                    'file' => $d->file_path,
+                    'url' => url('/storage/' . $d->file_path),
+                    'created_at' => $d->created_at,
+                ]),
             ]);
 
         return response()->json($users);

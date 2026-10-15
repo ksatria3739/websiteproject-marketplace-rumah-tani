@@ -216,6 +216,42 @@
           />
         </div>
 
+        <!-- KYC Filter Pills -->
+        <div style="display: flex; gap: 0.4rem; margin-bottom: 1rem; flex-wrap: wrap;">
+          <button
+            class="btn btn-sm"
+            :class="kycFilter === 'all' ? 'btn-primary' : 'btn-secondary'"
+            style="font-size: 0.78rem; padding: 0.25rem 0.65rem;"
+            @click="kycFilter = 'all'"
+          >
+            Semua Pengguna ({{ users.length }})
+          </button>
+          <button
+            class="btn btn-sm"
+            :class="kycFilter === 'pending' ? 'btn-primary' : 'btn-secondary'"
+            style="font-size: 0.78rem; padding: 0.25rem 0.65rem; border: 1px solid #f59e0b;"
+            @click="kycFilter = 'pending'"
+          >
+            ⏳ Menunggu Review KYC ({{ pendingKycUsersCount }})
+          </button>
+          <button
+            class="btn btn-sm"
+            :class="kycFilter === 'approved' ? 'btn-primary' : 'btn-secondary'"
+            style="font-size: 0.78rem; padding: 0.25rem 0.65rem;"
+            @click="kycFilter = 'approved'"
+          >
+            ✓ Terverifikasi ({{ approvedKycUsersCount }})
+          </button>
+          <button
+            class="btn btn-sm"
+            :class="kycFilter === 'rejected' ? 'btn-primary' : 'btn-secondary'"
+            style="font-size: 0.78rem; padding: 0.25rem 0.65rem;"
+            @click="kycFilter = 'rejected'"
+          >
+            ✕ Ditolak ({{ rejectedKycUsersCount }})
+          </button>
+        </div>
+
         <div class="table-responsive">
           <table class="table">
             <thead>
@@ -223,7 +259,7 @@
                 <th>Pengguna</th>
                 <th style="min-width: 170px;">Peran (Role) & Ubah Role</th>
                 <th>Wilayah</th>
-                <th>Status KYC</th>
+                <th>Status KYC & Berkas</th>
                 <th>Status Akun</th>
                 <th>Aksi Verifikasi</th>
               </tr>
@@ -264,9 +300,38 @@
                 </td>
                 <td>{{ u.region?.name || u.region || '-' }}</td>
                 <td>
-                  <span class="badge" :class="u.kyc_status === 'approved' || u.kyc_status === 'verified' ? 'badge-green' : 'badge-amber'">
-                    {{ u.kyc_status || 'unverified' }}
-                  </span>
+                  <div>
+                    <span
+                      class="badge"
+                      :class="{
+                        'badge-green': u.kyc_status === 'approved' || u.kyc_status === 'verified',
+                        'badge-amber': u.kyc_status === 'pending',
+                        'badge-red': u.kyc_status === 'rejected',
+                        'badge-slate': !u.kyc_status || u.kyc_status === 'unsubmitted'
+                      }"
+                    >
+                      {{
+                        u.kyc_status === 'approved' || u.kyc_status === 'verified'
+                          ? '✓ Terverifikasi'
+                          : (u.kyc_status === 'pending'
+                              ? '⏳ Menunggu Validasi'
+                              : (u.kyc_status === 'rejected' ? '✕ Ditolak' : 'Belum Mengajukan'))
+                      }}
+                    </span>
+                  </div>
+                  <!-- Uploaded documents pill -->
+                  <div v-if="u.docs && u.docs.length > 0" style="margin-top: 0.35rem;">
+                    <button
+                      class="btn btn-secondary btn-sm"
+                      style="font-size: 0.72rem; padding: 0.15rem 0.5rem; display: inline-flex; align-items: center; gap: 0.25rem; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;"
+                      @click="openKycReviewModal(u)"
+                    >
+                      📄 {{ u.docs.length }} Berkas Digital
+                    </button>
+                  </div>
+                  <div v-if="u.kyc_note && u.kyc_status === 'rejected'" style="font-size: 0.7rem; color: #ef4444; margin-top: 0.2rem;">
+                    Alasan: {{ u.kyc_note }}
+                  </div>
                 </td>
                 <td>
                   <span class="badge" :class="u.is_active ? 'badge-green' : 'badge-red'">
@@ -274,15 +339,26 @@
                   </span>
                 </td>
                 <td>
-                  <div style="display: flex; gap: 0.35rem;">
+                  <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                    <!-- If user has docs or pending, show Review button -->
                     <button
-                      v-if="u.kyc_status !== 'approved' && u.kyc_status !== 'verified'"
+                      v-if="(u.docs && u.docs.length > 0) || u.kyc_status === 'pending'"
+                      class="btn btn-primary btn-sm"
+                      style="font-size: 0.75rem; padding: 0.2rem 0.55rem; background: #0284c7; border-color: #0284c7;"
+                      @click="openKycReviewModal(u)"
+                    >
+                      🔍 Tinjau Berkas KYC
+                    </button>
+                    <!-- Fallback quick verify button if not approved and no docs -->
+                    <button
+                      v-else-if="u.kyc_status !== 'approved' && u.kyc_status !== 'verified'"
                       class="btn btn-primary btn-sm"
                       style="font-size: 0.75rem; padding: 0.2rem 0.5rem;"
                       @click="verifyKyc(u.id)"
                     >
                       ✓ Verifikasi
                     </button>
+
                     <button
                       class="btn btn-secondary btn-sm"
                       style="font-size: 0.75rem; padding: 0.2rem 0.5rem;"
@@ -686,13 +762,180 @@
         </form>
       </div>
     </div>
+
+    <!-- Modal Peninjauan Berkas KYC Pengguna (Admin & Super Admin) -->
+    <div
+      v-if="showKycReviewModal && selectedKycUser"
+      style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 10000; padding: 1rem;"
+    >
+      <div class="card" style="width: 100%; max-width: 800px; max-height: 90vh; overflow-y: auto; background: #ffffff; border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35);">
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; margin-bottom: 1rem;">
+          <div>
+            <h3 style="font-size: 1.25rem; font-weight: 800; color: #1e3a8a; margin: 0;">
+              🔍 Peninjauan Dokumen KYC Petani / Mitra
+            </h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem; margin-bottom: 0;">
+              Tinjau keabsahan berkas identitas & legalitas sebelum menyetujui akun untuk berjualan di katalog Rumah Tani.
+            </p>
+          </div>
+          <button class="btn btn-sm btn-secondary" style="font-size: 1rem; line-height: 1;" @click="closeKycReviewModal">✕</button>
+        </div>
+
+        <!-- User Information Card -->
+        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: var(--radius); padding: 0.85rem; margin-bottom: 1.25rem;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; font-size: 0.85rem;">
+            <div>
+              <span style="color: var(--text-muted); font-size: 0.75rem;">Nama Lengkap:</span>
+              <div style="font-weight: 700; font-size: 0.95rem;">{{ selectedKycUser.full_name || selectedKycUser.name }}</div>
+            </div>
+            <div>
+              <span style="color: var(--text-muted); font-size: 0.75rem;">Email & Kontak:</span>
+              <div style="font-weight: 600;">{{ selectedKycUser.email }}</div>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">{{ selectedKycUser.phone || '-' }}</div>
+            </div>
+            <div>
+              <span style="color: var(--text-muted); font-size: 0.75rem;">Peran & Wilayah:</span>
+              <div style="font-weight: 600;">
+                <span class="badge badge-primary" style="font-size: 0.75rem; text-transform: uppercase;">{{ selectedKycUser.role }}</span>
+                {{ selectedKycUser.region?.name || selectedKycUser.region || '-' }}
+              </div>
+            </div>
+            <div>
+              <span style="color: var(--text-muted); font-size: 0.75rem;">Status KYC Saat Ini:</span>
+              <div>
+                <span
+                  class="badge"
+                  :class="{
+                    'badge-green': selectedKycUser.kyc_status === 'approved' || selectedKycUser.kyc_status === 'verified',
+                    'badge-amber': selectedKycUser.kyc_status === 'pending',
+                    'badge-red': selectedKycUser.kyc_status === 'rejected',
+                    'badge-slate': !selectedKycUser.kyc_status || selectedKycUser.kyc_status === 'unsubmitted'
+                  }"
+                  style="font-size: 0.85rem;"
+                >
+                  {{ selectedKycUser.kyc_status || 'unsubmitted' }}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div v-if="selectedKycUser.address" style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-muted); border-top: 1px dashed var(--border); padding-top: 0.4rem;">
+            📍 Alamat Lahan/Domisili: {{ selectedKycUser.address }}
+          </div>
+        </div>
+
+        <!-- Documents List -->
+        <div style="margin-bottom: 1.25rem;">
+          <h4 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.75rem; color: #0f172a;">
+            Berkas Dokumen Terlampir ({{ selectedKycUser.docs?.length || 0 }})
+          </h4>
+
+          <div v-if="!selectedKycUser.docs || selectedKycUser.docs.length === 0" style="text-align: center; padding: 2.5rem 1rem; background: #f8fafc; border: 1px dashed var(--border); border-radius: var(--radius);">
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📁</div>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">
+              Pengguna ini belum mengunggah dokumen digital KYC.
+            </p>
+            <p style="font-size: 0.8rem; color: #94a3b8;">
+              Anda dapat memberikan verifikasi darurat jika konfirmasi keaslian identitas telah divalidasi.
+            </p>
+          </div>
+
+          <div v-else style="display: flex; flex-direction: column; gap: 1rem;">
+            <div
+              v-for="(doc, idx) in selectedKycUser.docs"
+              :key="doc.id || idx"
+              style="border: 1px solid var(--border); border-radius: var(--radius); padding: 0.85rem; background: #f8fafc;"
+            >
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <span class="badge badge-primary" style="font-size: 0.8rem; text-transform: uppercase;">
+                    {{ doc.type || 'Dokumen Identitas' }}
+                  </span>
+                  <span style="font-size: 0.75rem; color: var(--text-muted);">
+                    {{ doc.created_at ? formatDate(doc.created_at) : 'Diunggah Petani' }}
+                  </span>
+                </div>
+                <a
+                  :href="resolveImageUrl(doc.file || doc.url)"
+                  target="_blank"
+                  class="btn btn-secondary btn-sm"
+                  style="font-size: 0.75rem; padding: 0.2rem 0.6rem; text-decoration: none;"
+                >
+                  ↗ Buka Ukuran Asli (Tab Baru)
+                </a>
+              </div>
+
+              <!-- Media Preview -->
+              <div style="text-align: center; background: #0f172a; border-radius: 8px; padding: 0.5rem; overflow: hidden; min-height: 180px; display: flex; align-items: center; justify-content: center;">
+                <template v-if="isPdfDoc(doc.file || doc.url)">
+                  <div style="padding: 2rem; color: #ffffff;">
+                    <div style="font-size: 3rem; margin-bottom: 0.5rem;">📄</div>
+                    <div style="font-weight: 600; margin-bottom: 0.75rem; font-size: 0.95rem;">Dokumen Berformat PDF</div>
+                    <a
+                      :href="resolveImageUrl(doc.file || doc.url)"
+                      target="_blank"
+                      class="btn btn-primary btn-sm"
+                    >
+                      Buka & Unduh PDF
+                    </a>
+                  </div>
+                </template>
+                <template v-else>
+                  <img
+                    :src="resolveImageUrl(doc.file || doc.url)"
+                    :alt="'Berkas KYC ' + (doc.type || 'Petani')"
+                    style="max-width: 100%; max-height: 420px; object-fit: contain; border-radius: 4px; display: block; margin: 0 auto; cursor: zoom-in;"
+                    @click="openFullscreenImage(resolveImageUrl(doc.file || doc.url))"
+                    title="Klik untuk membuka ukuran asli di tab baru"
+                  />
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Verification Notes -->
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label class="label" style="font-weight: 700;">Catatan Verifikasi / Alasan Penolakan</label>
+          <textarea
+            v-model="kycReviewNote"
+            rows="2"
+            class="textarea"
+            placeholder="Tuliskan catatan verifikasi (misal: 'Foto KTP jelas dan legalitas lahan valid' atau 'Foto KTP buram, mohon upload ulang')..."
+          ></textarea>
+        </div>
+
+        <!-- Action Footer -->
+        <div style="display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap;">
+          <button type="button" class="btn btn-secondary" :disabled="submittingKycDecision" @click="closeKycReviewModal">
+            Tutup
+          </button>
+          <button
+            type="button"
+            class="btn btn-danger"
+            :disabled="submittingKycDecision"
+            @click="handleKycDecision(selectedKycUser.id, 'reject')"
+          >
+            ✕ Tolak Berkas KYC
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            :disabled="submittingKycDecision"
+            @click="handleKycDecision(selectedKycUser.id, 'approve')"
+          >
+            {{ submittingKycDecision ? 'Menyimpan Keputusan...' : '✓ Setujui KYC Petani' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useAuthStore } from '../../stores/auth';
-import { api, idr } from '../../services/api';
+import { api, idr, resolveImageUrl } from '../../services/api';
 
 const auth = useAuthStore();
 
@@ -700,6 +943,23 @@ const activeTab = ref('analytics');
 const analytics = ref({});
 const users = ref([]);
 const userSearch = ref('');
+const kycFilter = ref('all');
+const showKycReviewModal = ref(false);
+const selectedKycUser = ref(null);
+const kycReviewNote = ref('');
+const submittingKycDecision = ref(false);
+
+const pendingKycUsersCount = computed(() => {
+  return users.value.filter((u) => u.kyc_status === 'pending').length;
+});
+
+const approvedKycUsersCount = computed(() => {
+  return users.value.filter((u) => u.kyc_status === 'approved' || u.kyc_status === 'verified').length;
+});
+
+const rejectedKycUsersCount = computed(() => {
+  return users.value.filter((u) => u.kyc_status === 'rejected').length;
+});
 const allCommodities = ref([]);
 const stockSearch = ref('');
 const loadingStock = ref(false);
@@ -780,9 +1040,20 @@ const getGradeBadge = (grade) => {
 };
 
 const filteredUsers = computed(() => {
-  if (!userSearch.value) return users.value;
+  let list = users.value;
+  if (kycFilter.value !== 'all') {
+    list = list.filter((u) => {
+      const st = u.kyc_status || 'unsubmitted';
+      if (kycFilter.value === 'pending') return st === 'pending';
+      if (kycFilter.value === 'approved') return st === 'approved' || st === 'verified';
+      if (kycFilter.value === 'rejected') return st === 'rejected';
+      if (kycFilter.value === 'unsubmitted') return !st || st === 'unsubmitted';
+      return true;
+    });
+  }
+  if (!userSearch.value) return list;
   const q = userSearch.value.toLowerCase();
-  return users.value.filter(
+  return list.filter(
     (u) =>
       (u.name && u.name.toLowerCase().includes(q)) ||
       (u.full_name && u.full_name.toLowerCase().includes(q)) ||
@@ -903,6 +1174,54 @@ const loadSettings = async () => {
     }
   } catch (err) {
     console.error('Failed to load settings:', err);
+  }
+};
+
+const openKycReviewModal = (user) => {
+  selectedKycUser.value = user;
+  kycReviewNote.value = user.kyc_note || '';
+  showKycReviewModal.value = true;
+};
+
+const closeKycReviewModal = () => {
+  showKycReviewModal.value = false;
+  selectedKycUser.value = null;
+  kycReviewNote.value = '';
+};
+
+const isPdfDoc = (file) => {
+  if (!file) return false;
+  return file.toLowerCase().includes('.pdf');
+};
+
+const openFullscreenImage = (url) => {
+  if (url) window.open(url, '_blank');
+};
+
+const handleKycDecision = async (userId, decision) => {
+  try {
+    submittingKycDecision.value = true;
+    errorMessage.value = '';
+    const isApprove = decision === 'approve';
+    const note = kycReviewNote.value.trim() || (isApprove ? 'Verifikasi KYC disetujui Administrator' : 'Dokumen belum memenuhi kriteria validasi');
+
+    await api.post(`/kyc/${userId}/review`, {
+      decision: isApprove ? 'approve' : 'reject',
+      note: note,
+    });
+
+    noticeMessage.value = isApprove
+      ? `✓ Dokumen KYC untuk ${selectedKycUser.value?.name || selectedKycUser.value?.full_name} berhasil disetujui!`
+      : `✕ Berkas KYC ${selectedKycUser.value?.name || selectedKycUser.value?.full_name} telah ditolak.`;
+
+    closeKycReviewModal();
+    await loadUsers();
+    setTimeout(() => { noticeMessage.value = ''; }, 5000);
+  } catch (err) {
+    errorMessage.value = err.message || 'Gagal memproses peninjauan KYC.';
+    setTimeout(() => { errorMessage.value = ''; }, 5000);
+  } finally {
+    submittingKycDecision.value = false;
   }
 };
 

@@ -62,14 +62,16 @@
           </div>
         </div>
 
-        <div v-if="form.buyer_type === 'b2b' && form.role === 'pembeli'" class="form-group">
-          <label class="label">Nama Perusahaan / Institusi</label>
+        <div v-if="(form.buyer_type === 'b2b' && form.role === 'pembeli') || form.role === 'admin_tengkulak'" class="form-group">
+          <label class="label">
+            {{ form.role === 'admin_tengkulak' ? 'Nama Usaha / Gudang Distribusi Tengkulak' : 'Nama Perusahaan / Institusi' }}
+          </label>
           <input
             v-model="form.company_name"
             type="text"
             class="input"
-            required
-            placeholder="PT Berkah Boga Mandiri / Grand Mercure Hotel"
+            :required="form.buyer_type === 'b2b' && form.role === 'pembeli'"
+            :placeholder="form.role === 'admin_tengkulak' ? 'Contoh: CV Mandiri Logistik Tani / UD Sumber Rejeki' : 'PT Berkah Boga Mandiri / Grand Mercure Hotel'"
           />
         </div>
 

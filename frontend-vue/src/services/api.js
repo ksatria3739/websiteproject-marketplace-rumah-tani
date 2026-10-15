@@ -70,8 +70,10 @@ export const resolveImageUrl = (path) => {
     if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
         return path;
     }
-    if (path.startsWith('/storage/')) {
-        return `http://127.0.0.1:8000${path}`;
+    const backendBase = API_URL.replace(/\/api\/?$/, '');
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    if (cleanPath.startsWith('/storage/')) {
+        return `${backendBase}${cleanPath}`;
     }
-    return path;
+    return `${backendBase}/storage${cleanPath}`;
 };
