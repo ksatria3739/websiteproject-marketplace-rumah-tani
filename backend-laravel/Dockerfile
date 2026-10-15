@@ -2,6 +2,7 @@ FROM php:8.2-cli-alpine
 
 # Install system dependencies and PHP MySQL extensions
 RUN apk add --no-cache \
+    ca-certificates \
     mysql-client \
     libpng-dev \
     libjpeg-turbo-dev \
@@ -11,6 +12,7 @@ RUN apk add --no-cache \
     git \
     oniguruma-dev \
     curl \
+    && update-ca-certificates \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo pdo_mysql mbstring zip gd bcmath
 
