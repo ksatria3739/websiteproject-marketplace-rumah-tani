@@ -41,7 +41,7 @@
             {{ shipment.tracking_code }}
           </h2>
           <div style="font-size: 0.85rem; color: var(--text-muted);">
-            Invoice Terkait: <strong>{{ shipment.order?.order_number || '-' }}</strong>
+            Invoice Terkait: <strong>{{ shipment.order?.order_number || shipment.order_number || '-' }}</strong>
           </div>
         </div>
 
@@ -50,7 +50,7 @@
             {{ getStatusLabel(shipment.status) }}
           </span>
           <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">
-            Muatan: {{ shipment.actual_weight_kg || 0 }} kg
+            Muatan: {{ shipment.actual_weight_kg || shipment.total_weight_kg || shipment.order?.total_weight_kg || 0 }} kg
           </div>
         </div>
       </div>
@@ -59,12 +59,22 @@
       <div style="margin: 2rem 0;">
         <div style="display: flex; justify-content: space-between; position: relative;">
           <!-- Connecting Line -->
-          <div style="position: absolute; top: 18px; left: 5%; right: 5%; height: 4px; background: #e2e8f0; z-index: 1;"></div>
           <div
             :style="{
               position: 'absolute',
               top: '18px',
-              left: '5%',
+              left: `${stepCenterPercent}%`,
+              right: `${stepCenterPercent}%`,
+              height: '4px',
+              background: '#e2e8f0',
+              zIndex: 1
+            }"
+          ></div>
+          <div
+            :style="{
+              position: 'absolute',
+              top: '18px',
+              left: `${stepCenterPercent}%`,
               width: `${stepperProgressPercent}%`,
               height: '4px',
               background: 'var(--primary)',
@@ -176,23 +186,45 @@ const shipment = ref(null);
 const loading = ref(false);
 const error = ref('');
 
+const statusToStepKey = (status) => {
+  if (!status) return 'preparing';
+  const s = String(status).toLowerCase();
+  if (['draft', 'pending', 'preparing', 'diproses'].includes(s)) return 'preparing';
+  if (['assigned', 'picked_up', 'pickup'].includes(s)) return 'picked_up';
+  if (['loading', 'in_transit', 'dikirim', 'transit'].includes(s)) return 'in_transit';
+  if (['arrived', 'arrived_hub', 'hub'].includes(s)) return 'arrived_hub';
+  if (['out_for_delivery', 'delivery'].includes(s)) return 'out_for_delivery';
+  if (['delivered', 'completed', 'selesai'].includes(s)) return 'delivered';
+  return s;
+};
+
 const steps = [
-  { key: 'draft', label: 'Diproses' },
-  { key: 'assigned', label: 'Armada Siap' },
-  { key: 'loading', label: 'Pemuatan' },
-  { key: 'in_transit', label: 'Dalam Perjalanan' },
-  { key: 'arrived', label: 'Tiba di Tujuan' },
-  { key: 'delivered', label: 'Selesai Diterima' },
+  { key: 'preparing', label: 'Diproses' },
+  { key: 'picked_up', label: 'Armada Siap' },
+  { key: 'in_transit', label: 'Perjalanan' },
+  { key: 'arrived_hub', label: 'Hub Transit' },
+  { key: 'out_for_delivery', label: 'Diantar' },
+  { key: 'delivered', label: 'Diterima' },
 ];
 
 const currentStepIndex = computed(() => {
   if (!shipment.value) return 0;
-  const idx = steps.findIndex((s) => s.key === shipment.value.status);
+  const canonical = statusToStepKey(shipment.value.status);
+  const idx = steps.findIndex((s) => s.key === canonical);
   return idx >= 0 ? idx : 0;
 });
 
+const stepCenterPercent = computed(() => {
+  return 100 / (2 * steps.length);
+});
+
+const maxLineWidthPercent = computed(() => {
+  return 100 - (2 * stepCenterPercent.value);
+});
+
 const stepperProgressPercent = computed(() => {
-  return (currentStepIndex.value / (steps.length - 1)) * 90;
+  if (steps.length <= 1) return 0;
+  return (currentStepIndex.value / (steps.length - 1)) * maxLineWidthPercent.value;
 });
 
 const isStepActive = (key) => {
@@ -206,17 +238,28 @@ const isStepPassed = (key) => {
 };
 
 const getStatusBadge = (status) => {
-  switch (status) {
+  const s = statusToStepKey(status);
+  switch (s) {
     case 'delivered': return 'badge-green';
+    case 'out_for_delivery':
+    case 'arrived_hub':
     case 'in_transit': return 'badge-blue';
-    case 'loading': return 'badge-amber';
+    case 'picked_up': return 'badge-amber';
     default: return 'badge-gray';
   }
 };
 
 const getStatusLabel = (status) => {
-  const found = steps.find((s) => s.key === status);
-  return found ? found.label : status;
+  const s = statusToStepKey(status);
+  const labels = {
+    preparing: 'Diproses / Menyiapkan Muatan',
+    picked_up: 'Armada Siap / Dijemput',
+    in_transit: 'Dalam Perjalanan Menuju Tujuan',
+    arrived_hub: 'Tiba di Hub Transit Kota',
+    out_for_delivery: 'Kurir Menuju Alamat Penerima',
+    delivered: 'Pesanan Telah Diterima Pembeli',
+  };
+  return labels[s] || status;
 };
 
 const formatDate = (isoString) => {

@@ -1290,7 +1290,9 @@ const loadVehicles = async () => {
 
 const openShipmentStatusModal = (shipment) => {
   modalShipmentStatus.shipment = shipment;
-  modalShipmentStatus.status = shipment.status;
+  const flow = ['preparing', 'picked_up', 'in_transit', 'arrived_hub', 'out_for_delivery', 'delivered'];
+  const curIdx = flow.indexOf(shipment.status);
+  modalShipmentStatus.status = (curIdx >= 0 && curIdx < flow.length - 1) ? flow[curIdx + 1] : (shipment.status || 'picked_up');
   modalShipmentStatus.note = '';
   modalShipmentStatus.show = true;
 };

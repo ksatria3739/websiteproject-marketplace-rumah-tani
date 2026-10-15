@@ -253,10 +253,10 @@
         <div class="form-group">
           <label class="label">Status Tahapan Baru:</label>
           <select v-model="modalStatus.status" class="select">
-            <option value="assigned">Armada Siap (Assigned)</option>
-            <option value="loading">Pemuatan Komoditas (Loading)</option>
+            <option value="picked_up">Armada Siap / Muatan Dijemput (Picked Up)</option>
             <option value="in_transit">Dalam Perjalanan (In Transit)</option>
-            <option value="arrived">Tiba di Gudang Tujuan (Arrived)</option>
+            <option value="arrived_hub">Tiba di Hub Transit Kota (Arrived Hub)</option>
+            <option value="out_for_delivery">Kurir Menuju Alamat Penerima (Out for Delivery)</option>
             <option value="delivered">Selesai Diterima Pembeli (Delivered)</option>
           </select>
         </div>
@@ -367,7 +367,12 @@ const getGradeBadge = (grade) => {
 const getShipmentBadge = (status) => {
   switch (status) {
     case 'delivered': return 'badge-green';
+    case 'out_for_delivery':
+    case 'arrived_hub':
+    case 'arrived':
     case 'in_transit': return 'badge-blue';
+    case 'picked_up':
+    case 'assigned':
     case 'loading': return 'badge-amber';
     default: return 'badge-gray';
   }
@@ -448,7 +453,9 @@ const executeAssignVehicle = async () => {
 
 const openStatusModal = (shipment) => {
   modalStatus.shipment = shipment;
-  modalStatus.status = 'in_transit';
+  const flow = ['preparing', 'picked_up', 'in_transit', 'arrived_hub', 'out_for_delivery', 'delivered'];
+  const curIdx = flow.indexOf(shipment.status);
+  modalStatus.status = (curIdx >= 0 && curIdx < flow.length - 1) ? flow[curIdx + 1] : (shipment.status || 'picked_up');
   modalStatus.location = '';
   modalStatus.description = '';
   modalStatus.show = true;
@@ -457,9 +464,10 @@ const openStatusModal = (shipment) => {
 const executeStatusUpdate = async () => {
   if (!modalStatus.shipment) return;
   try {
+    const locPrefix = modalStatus.location ? `[${modalStatus.location}] ` : '';
     await api.patch(`/logistics/shipments/${modalStatus.shipment.id}/status`, {
       status: modalStatus.status,
-      note: modalStatus.description || `Status diperbarui ke ${modalStatus.status}`,
+      note: modalStatus.description ? `${locPrefix}${modalStatus.description}` : (modalStatus.location ? `Lokasi terkini: ${modalStatus.location}` : undefined),
     });
     modalStatus.show = false;
     noticeMessage.value = 'Status pengiriman dan event perjalanan berhasil diperbarui.';

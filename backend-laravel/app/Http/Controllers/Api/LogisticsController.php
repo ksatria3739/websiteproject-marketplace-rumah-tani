@@ -59,15 +59,34 @@ class LogisticsController extends Controller
             'last_lat' => $shipment->last_lat,
             'last_lng' => $shipment->last_lng,
             'updated_at' => $shipment->updated_at,
+            'actual_weight_kg' => $order ? (float) $order->total_weight_kg : 0,
+            'total_weight_kg' => $order ? (float) $order->total_weight_kg : 0,
+            'order' => $order ? [
+                'id' => $order->id,
+                'order_number' => $order->code,
+                'code' => $order->code,
+            ] : null,
+            'vehicle' => $shipment->vehicle ? [
+                'id' => $shipment->vehicle->id,
+                'plate' => $shipment->vehicle->plate,
+                'plate_number' => $shipment->vehicle->plate,
+                'type' => $shipment->vehicle->type,
+                'model' => $shipment->vehicle->type,
+                'capacity_kg' => (float) $shipment->vehicle->capacity_kg,
+                'max_capacity_kg' => (float) $shipment->vehicle->capacity_kg,
+                'driver_name' => $shipment->vehicle->driver_name,
+                'driver_phone' => '-',
+            ] : null,
             'plate' => $shipment->vehicle ? $shipment->vehicle->plate : null,
             'driver_name' => $shipment->vehicle ? $shipment->vehicle->driver_name : null,
-            'origin' => $order->originRegion->name,
-            'destination' => $order->destRegion->name,
-            'o_lat' => (float) $order->originRegion->lat,
-            'o_lng' => (float) $order->originRegion->lng,
-            'd_lat' => (float) $order->destRegion->lat,
-            'd_lng' => (float) $order->destRegion->lng,
+            'origin' => $order && $order->originRegion ? $order->originRegion->name : '-',
+            'destination' => $order && $order->destRegion ? $order->destRegion->name : '-',
+            'o_lat' => $order && $order->originRegion ? (float) $order->originRegion->lat : -6.2,
+            'o_lng' => $order && $order->originRegion ? (float) $order->originRegion->lng : 106.8,
+            'd_lat' => $order && $order->destRegion ? (float) $order->destRegion->lat : -6.2,
+            'd_lng' => $order && $order->destRegion ? (float) $order->destRegion->lng : 106.8,
             'events' => $shipment->events->map(fn($e) => [
+                'id' => $e->id,
                 'status' => $e->status,
                 'note' => $e->note,
                 'lat' => $e->lat,
@@ -327,53 +346,95 @@ class LogisticsController extends Controller
 
     public function updateStatus(Request $request, $id)
     {
+        $allowedStatuses = [
+            'preparing', 'draft',
+            'picked_up', 'assigned', 'loading',
+            'in_transit',
+            'arrived_hub', 'arrived', 'out_for_delivery',
+            'delivered',
+        ];
+
         $validated = $request->validate([
-            'status' => ['required', Rule::in(self::STATUS_FLOW)],
+            'status' => ['required', Rule::in($allowedStatuses)],
             'note' => 'nullable|string',
             'lat' => 'nullable|numeric',
             'lng' => 'nullable|numeric',
         ]);
 
+        $normalizedStatus = match ($validated['status']) {
+            'draft' => 'preparing',
+            'assigned' => 'picked_up',
+            'loading' => 'in_transit',
+            'arrived' => 'arrived_hub',
+            default => $validated['status'],
+        };
+
         $user = $request->user();
 
-        DB::transaction(function () use ($validated, $user, $id) {
-            $shipment = Shipment::with('order')->where('id', $id)->lockForUpdate()->firstOrFail();
+        DB::transaction(function () use ($validated, $normalizedStatus, $user, $id) {
+            $shipment = Shipment::with(['order.originRegion', 'vehicle'])->where('id', $id)->lockForUpdate()->firstOrFail();
 
-            if ($user->role === 'admin_tengkulak' && $shipment->order->region_id !== $user->region_id) {
-                abort(403, 'Di luar wilayah kendali Anda.');
+            // Authorization:
+            // Super Admin & Admin Support L3 can update any shipment nationwide
+            // Tengkulak can update if:
+            // 1. Their vehicle is assigned to the shipment
+            // 2. The order is in their region
+            // 3. The origin province matches their region province
+            if ($user->role === 'admin_tengkulak') {
+                $isVehicleOwner = $shipment->vehicle && ($shipment->vehicle->owner_id == $user->id);
+                $isRegionMatch = $shipment->order && (
+                    $shipment->order->region_id == $user->region_id ||
+                    $shipment->order->origin_region_id == $user->region_id
+                );
+
+                $userRegion = $user->region_id ? Region::find($user->region_id) : null;
+                $isProvinceMatch = false;
+                if ($userRegion && $shipment->order && $shipment->order->originRegion) {
+                    $isProvinceMatch = ($shipment->order->originRegion->province === $userRegion->province);
+                }
+
+                if (!$isVehicleOwner && !$isRegionMatch && !$isProvinceMatch) {
+                    abort(403, 'Di luar wilayah kendali Anda.');
+                }
             }
 
-            $currentIndex = array_search($shipment->status, self::STATUS_FLOW);
-            $targetIndex = array_search($validated['status'], self::STATUS_FLOW);
-
-            if ($targetIndex !== ($currentIndex + 1)) {
-                $expected = self::STATUS_FLOW[$currentIndex + 1] ?? 'selesai';
-                abort(409, "Alur status pengiriman harus bertahap. Tahap berikutnya adalah '{$expected}'.");
-            }
-
-            $shipment->status = $validated['status'];
+            $shipment->status = $normalizedStatus;
             if (isset($validated['lat'])) $shipment->last_lat = $validated['lat'];
             if (isset($validated['lng'])) $shipment->last_lng = $validated['lng'];
             $shipment->save();
 
+            $defaultNote = match ($normalizedStatus) {
+                'preparing' => "Pengemasan komoditas hasil panen di hub/kebun asal.",
+                'picked_up' => "Armada telah menjemput muatan hasil panen di titik asal.",
+                'in_transit' => "Armada sedang dalam perjalanan menuju kota tujuan.",
+                'arrived_hub' => "Armada dan muatan telah tiba di Hub Transit Kota.",
+                'out_for_delivery' => "Kurir logistik sedang menuju ke alamat penerima.",
+                'delivered' => "Pesanan telah sukses diterima oleh pembeli.",
+                default => "Status logistik diperbarui menjadi {$normalizedStatus}.",
+            };
+
             ShipmentEvent::create([
                 'shipment_id' => $shipment->id,
-                'status' => $validated['status'],
-                'note' => $validated['note'] ?? null,
-                'lat' => $validated['lat'] ?? null,
-                'lng' => $validated['lng'] ?? null,
+                'status' => $normalizedStatus,
+                'note' => $validated['note'] ?: "{$defaultNote} (diperbarui oleh {$user->name})",
+                'lat' => $validated['lat'] ?? $shipment->last_lat,
+                'lng' => $validated['lng'] ?? $shipment->last_lng,
             ]);
 
             // Sync with parent Order status
-            if ($validated['status'] === 'picked_up') {
-                $shipment->order->status = 'shipped';
-                $shipment->order->save();
-            } elseif ($validated['status'] === 'delivered') {
-                $shipment->order->status = 'delivered';
-                $shipment->order->save();
+            if (in_array($normalizedStatus, ['picked_up', 'in_transit', 'arrived_hub', 'out_for_delivery'])) {
+                if ($shipment->order && $shipment->order->status !== 'completed' && $shipment->order->status !== 'delivered') {
+                    $shipment->order->status = 'shipped';
+                    $shipment->order->save();
+                }
+            } elseif ($normalizedStatus === 'delivered') {
+                if ($shipment->order && $shipment->order->status !== 'completed') {
+                    $shipment->order->status = 'delivered';
+                    $shipment->order->save();
+                }
             }
         });
 
-        return response()->json(['ok' => true]);
+        return response()->json(['ok' => true, 'status' => $normalizedStatus]);
     }
 }
