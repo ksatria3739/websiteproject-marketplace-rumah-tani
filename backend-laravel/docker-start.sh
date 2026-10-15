@@ -5,10 +5,19 @@ PORT="${PORT:-8000}"
 
 echo ">> Preparing Laravel application on port $PORT..."
 
+# Ensure .env file exists for Laravel commands
+if [ ! -f .env ]; then
+    if [ -f .env.example ]; then
+        cp .env.example .env
+    else
+        touch .env
+    fi
+fi
+
 # Generate APP_KEY if not provided
 if [ -z "$APP_KEY" ]; then
     echo ">> Generating application key..."
-    php artisan key:generate --force
+    php artisan key:generate --force || true
 fi
 
 # Link storage

@@ -23,6 +23,7 @@ WORKDIR /app
 
 # Copy application files
 COPY . .
+RUN cp .env.example .env || true
 
 # Install production PHP dependencies
 RUN composer install --no-dev --optimize-autoloader --no-interaction
