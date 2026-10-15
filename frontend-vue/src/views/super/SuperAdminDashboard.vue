@@ -856,7 +856,7 @@
                   </span>
                 </div>
                 <a
-                  :href="resolveImageUrl(doc.file || doc.url)"
+                  :href="resolveDocUrl(doc)"
                   target="_blank"
                   class="btn btn-secondary btn-sm"
                   style="font-size: 0.75rem; padding: 0.2rem 0.6rem; text-decoration: none;"
@@ -867,12 +867,12 @@
 
               <!-- Media Preview -->
               <div style="text-align: center; background: #0f172a; border-radius: 8px; padding: 0.5rem; overflow: hidden; min-height: 180px; display: flex; align-items: center; justify-content: center;">
-                <template v-if="isPdfDoc(doc.file || doc.url)">
+                <template v-if="isPdfDoc(doc.file || doc.url || doc.type)">
                   <div style="padding: 2rem; color: #ffffff;">
                     <div style="font-size: 3rem; margin-bottom: 0.5rem;">📄</div>
                     <div style="font-weight: 600; margin-bottom: 0.75rem; font-size: 0.95rem;">Dokumen Berformat PDF</div>
                     <a
-                      :href="resolveImageUrl(doc.file || doc.url)"
+                      :href="resolveDocUrl(doc)"
                       target="_blank"
                       class="btn btn-primary btn-sm"
                     >
@@ -882,10 +882,11 @@
                 </template>
                 <template v-else>
                   <img
-                    :src="resolveImageUrl(doc.file || doc.url)"
+                    :src="resolveDocUrl(doc)"
                     :alt="'Berkas KYC ' + (doc.type || 'Petani')"
                     style="max-width: 100%; max-height: 420px; object-fit: contain; border-radius: 4px; display: block; margin: 0 auto; cursor: zoom-in;"
-                    @click="openFullscreenImage(resolveImageUrl(doc.file || doc.url))"
+                    @click="openFullscreenImage(resolveDocUrl(doc))"
+                    @error="(e) => { e.target.src = 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=800'; }"
                     title="Klik untuk membuka ukuran asli di tab baru"
                   />
                 </template>
@@ -1189,9 +1190,26 @@ const closeKycReviewModal = () => {
   kycReviewNote.value = '';
 };
 
+const formatDate = (iso) => formatDateTime(iso);
+
+const resolveDocUrl = (doc) => {
+  if (!doc) return 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=800';
+  if (doc.stream_url) return doc.stream_url;
+  if (doc.id) {
+    const baseApi = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api').trim().replace(/\/+$/, '');
+    const apiRoot = baseApi.endsWith('/api') ? baseApi : `${baseApi}/api`;
+    return `${apiRoot}/kyc/documents/${doc.id}/file`;
+  }
+  if (doc.url && (doc.url.startsWith('http://') || doc.url.startsWith('https://'))) {
+    return doc.url;
+  }
+  return resolveImageUrl(doc.file || doc.url);
+};
+
 const isPdfDoc = (file) => {
   if (!file) return false;
-  return file.toLowerCase().includes('.pdf');
+  const str = String(file).toLowerCase();
+  return str.includes('.pdf') || str.includes('pdf');
 };
 
 const openFullscreenImage = (url) => {

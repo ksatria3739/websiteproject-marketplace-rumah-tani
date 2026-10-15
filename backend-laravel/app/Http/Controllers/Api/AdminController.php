@@ -165,7 +165,9 @@ class AdminController extends Controller
                     'id' => $d->id,
                     'type' => $d->doc_type,
                     'file' => $d->file_path,
-                    'url' => url('/storage/' . $d->file_path),
+                    'url' => url('/api/kyc/documents/' . $d->id . '/file'),
+                    'stream_url' => url('/api/kyc/documents/' . $d->id . '/file'),
+                    'storage_url' => url('/storage/' . $d->file_path),
                     'created_at' => $d->created_at,
                 ]),
             ]);
