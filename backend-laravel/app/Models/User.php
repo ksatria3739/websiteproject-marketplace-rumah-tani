@@ -21,11 +21,28 @@ class User extends Authenticatable
         'company_name',
         'region_id',
         'address',
+        'avatar_url',
         'kyc_status',
         'kyc_note',
         'is_active',
         'token_version',
     ];
+
+    public function getEffectiveAvatarAttribute(): string
+    {
+        if (!empty($this->avatar_url)) {
+            return $this->avatar_url;
+        }
+        $bg = match ($this->role) {
+            'super_admin' => 'ef4444',
+            'admin' => '2563eb',
+            'admin_tengkulak' => '0284c7',
+            'petani' => '16a34a',
+            'pembeli' => 'f59e0b',
+            default => '64748b',
+        };
+        return 'https://ui-avatars.com/api/?name=' . urlencode($this->name) . "&background={$bg}&color=fff&size=128";
+    }
 
     protected $hidden = [
         'password',

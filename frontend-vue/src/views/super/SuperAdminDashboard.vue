@@ -256,6 +256,7 @@
           <table class="table">
             <thead>
               <tr>
+                <th style="width: 70px; text-align: center;">Avatar</th>
                 <th>Pengguna</th>
                 <th style="min-width: 170px;">Peran (Role) & Ubah Role</th>
                 <th>Wilayah</th>
@@ -266,6 +267,26 @@
             </thead>
             <tbody>
               <tr v-for="u in filteredUsers" :key="u.id">
+                <td style="text-align: center; vertical-align: middle;">
+                  <div
+                    style="position: relative; display: inline-block; cursor: pointer;"
+                    title="Klik untuk mengubah avatar pengguna ini"
+                    @click="triggerAvatarUpload(u)"
+                  >
+                    <img
+                      :src="u.avatar_url || u.effective_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.full_name || u.name)}&background=0284c7&color=fff`"
+                      :alt="u.name"
+                      style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.1);"
+                      @error="$event.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(u.full_name || u.name)}&background=0284c7&color=fff`"
+                    />
+                    <div
+                      style="position: absolute; bottom: -2px; right: -2px; background: #0284c7; color: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 10px; border: 2px solid white; box-shadow: 0 1px 2px rgba(0,0,0,0.2);"
+                      title="Ubah Foto Avatar"
+                    >
+                      📷
+                    </div>
+                  </div>
+                </td>
                 <td>
                   <div style="font-weight: 600;">{{ u.full_name || u.name }}</div>
                   <div style="font-size: 0.75rem; color: var(--text-muted);">{{ u.email }} • {{ u.phone || '-' }}</div>
@@ -372,6 +393,15 @@
             </tbody>
           </table>
         </div>
+
+        <!-- Hidden input for uploading user avatar -->
+        <input
+          type="file"
+          ref="avatarInputRef"
+          accept="image/*"
+          style="display: none;"
+          @change="handleAvatarFileSelected"
+        />
       </div>
     </div>
 
@@ -786,8 +816,18 @@
         <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: var(--radius); padding: 0.85rem; margin-bottom: 1.25rem;">
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; font-size: 0.85rem;">
             <div>
-              <span style="color: var(--text-muted); font-size: 0.75rem;">Nama Lengkap:</span>
-              <div style="font-weight: 700; font-size: 0.95rem;">{{ selectedKycUser.full_name || selectedKycUser.name }}</div>
+              <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <img
+                  :src="selectedKycUser.avatar_url || selectedKycUser.effective_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedKycUser.full_name || selectedKycUser.name)}&background=0284c7&color=fff`"
+                  :alt="selectedKycUser.name"
+                  style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid #0284c7; flex-shrink: 0;"
+                  @error="$event.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedKycUser.full_name || selectedKycUser.name)}&background=0284c7&color=fff`"
+                />
+                <div>
+                  <span style="color: var(--text-muted); font-size: 0.75rem;">Nama Lengkap:</span>
+                  <div style="font-weight: 700; font-size: 0.95rem; color: #1e293b;">{{ selectedKycUser.full_name || selectedKycUser.name }}</div>
+                </div>
+              </div>
             </div>
             <div>
               <span style="color: var(--text-muted); font-size: 0.75rem;">Email & Kontak:</span>
@@ -966,6 +1006,9 @@ const stockSearch = ref('');
 const loadingStock = ref(false);
 const stockUpdating = ref(null);
 const roleUpdating = ref(null);
+const avatarInputRef = ref(null);
+const selectedUserForAvatar = ref(null);
+const uploadingAvatar = ref(false);
 
 const settings = reactive({
   platform_fee_percent: 2.0,
@@ -1100,6 +1143,43 @@ const handleRoleChange = async (targetUser, newRole) => {
     errorMessage.value = err.message || 'Gagal mengubah peran pengguna.';
   } finally {
     roleUpdating.value = null;
+  }
+};
+
+const triggerAvatarUpload = (targetUser) => {
+  selectedUserForAvatar.value = targetUser;
+  if (avatarInputRef.value) {
+    avatarInputRef.value.value = '';
+    avatarInputRef.value.click();
+  }
+};
+
+const handleAvatarFileSelected = async (event) => {
+  const file = event.target.files?.[0];
+  if (!file || !selectedUserForAvatar.value) return;
+
+  if (file.size > 5 * 1024 * 1024) {
+    errorMessage.value = 'Ukuran berkas gambar avatar maksimal 5MB.';
+    return;
+  }
+
+  uploadingAvatar.value = true;
+  noticeMessage.value = `Mengunggah foto profil avatar untuk ${selectedUserForAvatar.value.name}...`;
+
+  try {
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    const res = await api.post(`/admin/users/${selectedUserForAvatar.value.id}/avatar`, formData);
+    if (res.avatar_url) {
+      selectedUserForAvatar.value.avatar_url = res.avatar_url;
+      selectedUserForAvatar.value.effective_avatar = res.avatar_url;
+      noticeMessage.value = `✓ Foto avatar profil untuk ${selectedUserForAvatar.value.name} berhasil diperbarui!`;
+    }
+  } catch (err) {
+    errorMessage.value = err.message || 'Gagal mengunggah foto avatar pengguna.';
+  } finally {
+    uploadingAvatar.value = false;
   }
 };
 

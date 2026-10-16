@@ -7,6 +7,7 @@ use App\Models\Article;
 use App\Models\Category;
 use App\Models\Commodity;
 use App\Models\Region;
+use App\Models\SystemSetting;
 use Illuminate\Http\Request;
 
 class CatalogController extends Controller
@@ -124,6 +125,7 @@ class CatalogController extends Controller
         return response()->json([
             'regions' => Region::orderBy('name')->get(['id', 'name', 'province', 'lat', 'lng']),
             'categories' => Category::orderBy('name')->get(['id', 'name', 'slug']),
+            'settings' => SystemSetting::getAllSettings(),
         ]);
     }
 

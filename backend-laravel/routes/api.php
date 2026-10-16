@@ -134,6 +134,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ------------------------------------------
     Route::middleware('role:super_admin,admin')->group(function () {
         Route::get('/admin/users', [AdminController::class, 'listUsers']);
+        Route::post('/admin/users/{id}/avatar', [AdminController::class, 'updateUserAvatar']);
         Route::patch('/admin/users/{id}', [AdminController::class, 'toggleUserStatus']);
         Route::patch('/admin/users/{id}/role', [AdminController::class, 'updateUserRole']);
         Route::get('/admin/analytics', [AdminController::class, 'analytics']);

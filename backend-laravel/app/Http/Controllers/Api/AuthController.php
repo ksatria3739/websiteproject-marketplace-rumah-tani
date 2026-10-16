@@ -67,6 +67,8 @@ class AuthController extends Controller
                 'buyer_type' => $user->buyer_type,
                 'company_name' => $user->company_name,
                 'region_id' => $user->region_id,
+                'avatar_url' => $user->avatar_url,
+                'effective_avatar' => $user->effective_avatar,
             ],
             'access_token' => $token,
             'token' => $token,
@@ -103,6 +105,8 @@ class AuthController extends Controller
                 'buyer_type' => $user->buyer_type,
                 'region_id' => $user->region_id,
                 'company_name' => $user->company_name,
+                'avatar_url' => $user->avatar_url,
+                'effective_avatar' => $user->effective_avatar,
             ],
             'access_token' => $token,
             'token_type' => 'Bearer',
@@ -134,6 +138,8 @@ class AuthController extends Controller
             'address' => $user->address,
             'kyc_status' => $user->kyc_status,
             'kyc_note' => $user->kyc_note,
+            'avatar_url' => $user->avatar_url,
+            'effective_avatar' => $user->effective_avatar,
         ]);
     }
 

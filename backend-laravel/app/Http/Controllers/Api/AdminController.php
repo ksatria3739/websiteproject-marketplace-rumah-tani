@@ -157,6 +157,7 @@ class AdminController extends Controller
                 'company_name' => $u->company_name,
                 'region_id' => $u->region_id,
                 'region' => $u->region ? $u->region->name : null,
+                'avatar_url' => $u->effective_avatar,
                 'kyc_status' => $u->kyc_status,
                 'kyc_note' => $u->kyc_note,
                 'is_active' => $u->is_active,
@@ -173,6 +174,27 @@ class AdminController extends Controller
             ]);
 
         return response()->json($users);
+    }
+
+    public function updateUserAvatar(Request $request, $id)
+    {
+        $user = User::findOrFail($id);
+
+        if ($request->hasFile('avatar')) {
+            $file = $request->file('avatar');
+            $mime = $file->getMimeType() ?: 'image/jpeg';
+            $data = file_get_contents($file->getRealPath());
+            $user->avatar_url = 'data:' . $mime . ';base64,' . base64_encode($data);
+            $user->save();
+        } elseif ($request->filled('avatar_url')) {
+            $user->avatar_url = $request->input('avatar_url');
+            $user->save();
+        }
+
+        return response()->json([
+            'ok' => true,
+            'avatar_url' => $user->effective_avatar,
+        ]);
     }
 
     public function createTengkulak(Request $request)
@@ -290,27 +312,56 @@ class AdminController extends Controller
 
     public function getSettings()
     {
-        $settings = SystemSetting::orderBy('key')->get();
+        $settings = SystemSetting::getAllSettings();
         return response()->json($settings);
     }
 
     public function updateSetting(Request $request, $key)
     {
         $validated = $request->validate([
-            'value' => 'required|string',
+            'value' => 'required',
         ]);
 
-        $setting = SystemSetting::updateOrCreate(
+        $val = (string) $validated['value'];
+
+        SystemSetting::updateOrCreate(
             ['key' => $key],
-            ['value' => $validated['value'], 'updated_by' => $request->user()->id]
+            ['value' => $val, 'updated_by' => $request->user()->id]
         );
+
+        // Keep rate and percentage in strict bidirectional sync
+        if ($key === 'platform_fee_percent') {
+            $rate = ((float) $val) / 100.0;
+            SystemSetting::updateOrCreate(
+                ['key' => 'admin_fee_rate'],
+                ['value' => (string) $rate, 'updated_by' => $request->user()->id]
+            );
+        } elseif ($key === 'admin_fee_rate') {
+            $pct = ((float) $val) * 100.0;
+            SystemSetting::updateOrCreate(
+                ['key' => 'platform_fee_percent'],
+                ['value' => (string) $pct, 'updated_by' => $request->user()->id]
+            );
+        } elseif ($key === 'ppn_rate') {
+            $taxRate = ((float) $val) / 100.0;
+            SystemSetting::updateOrCreate(
+                ['key' => 'tax_rate'],
+                ['value' => (string) $taxRate, 'updated_by' => $request->user()->id]
+            );
+        } elseif ($key === 'tax_rate') {
+            $ppn = ((float) $val) * 100.0;
+            SystemSetting::updateOrCreate(
+                ['key' => 'ppn_rate'],
+                ['value' => (string) $ppn, 'updated_by' => $request->user()->id]
+            );
+        }
 
         AuditLog::create([
             'actor_id' => $request->user()->id,
             'action' => 'setting.update',
             'entity' => 'setting',
             'entity_id' => $key,
-            'meta' => ['value' => $validated['value']],
+            'meta' => ['value' => $val],
         ]);
 
         return response()->json(['ok' => true]);

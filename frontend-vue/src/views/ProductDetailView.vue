@@ -114,7 +114,10 @@
         <div v-if="selectedVariant" class="form-group" style="margin-top: 1.5rem;">
           <label class="label">
             Jumlah Pesanan ({{ selectedVariant.unit }}):
-            <span v-if="selectedVariant.min_order > 1" style="color: var(--accent); font-weight: normal; font-size: 0.85rem; margin-left: 0.35rem;">
+            <span v-if="auth.isB2B" style="color: var(--accent); font-weight: 700; font-size: 0.85rem; margin-left: 0.35rem;">
+              (Batas Minimal B2B: {{ minB2bKg }} {{ selectedVariant.unit }})
+            </span>
+            <span v-else-if="selectedVariant.min_order > 1" style="color: var(--accent); font-weight: normal; font-size: 0.85rem; margin-left: 0.35rem;">
               (Minimal: {{ selectedVariant.min_order }} {{ selectedVariant.unit }})
             </span>
           </label>
@@ -122,7 +125,7 @@
             <input
               v-model.number="quantity"
               type="number"
-              :min="selectedVariant.min_order || 1"
+              :min="effectiveMinQty"
               :max="selectedVariant.stock_qty - (selectedVariant.reserved_qty || 0)"
               class="input"
               style="width: 140px; font-weight: 700; font-size: 1.1rem; text-align: center;"
@@ -212,8 +215,11 @@
               type="number"
               class="input"
               required
-              min="1"
+              :min="minB2bKg"
             />
+            <span style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; display: block;">
+              Batas minimal kuantitas negosiasi B2B sistem adalah <strong>{{ minB2bKg }} {{ selectedVariant?.unit }}</strong>.
+            </span>
           </div>
 
           <div class="form-group">
@@ -259,20 +265,25 @@ const actionLoading = ref(false);
 const actionError = ref('');
 const successMsg = ref('');
 
-// B2B Negotiation
+// B2B Negotiation & Min Order
 const showNegotiationModal = ref(false);
 const negoLoading = ref(false);
+const minB2bKg = ref(50);
 const negoForm = reactive({
   offered_price: null,
   requested_volume: 100,
   buyer_note: '',
 });
 
+const effectiveMinQty = computed(() => {
+  const baseMin = selectedVariant.value?.min_order || 1;
+  return auth.isB2B ? Math.max(baseMin, minB2bKg.value) : baseMin;
+});
+
 const hasAvailableStock = computed(() => {
   if (!selectedVariant.value) return false;
   const avail = selectedVariant.value.stock_qty - (selectedVariant.value.reserved_qty || 0);
-  const minOrder = selectedVariant.value.min_order || 1;
-  return avail >= quantity.value && quantity.value >= minOrder;
+  return avail >= quantity.value && quantity.value >= effectiveMinQty.value;
 });
 
 const getGradeBadge = (grade) => {
@@ -283,11 +294,24 @@ const getGradeBadge = (grade) => {
 
 const selectVariant = (v) => {
   selectedVariant.value = v;
-  const minOrder = v.min_order || 1;
-  if (quantity.value < minOrder) {
-    quantity.value = minOrder;
+  if (quantity.value < effectiveMinQty.value) {
+    quantity.value = effectiveMinQty.value;
   }
   negoForm.offered_price = v.price;
+  if (negoForm.requested_volume < minB2bKg.value) {
+    negoForm.requested_volume = minB2bKg.value;
+  }
+};
+
+const loadMeta = async () => {
+  try {
+    const meta = await api.get('/public/meta');
+    if (meta.settings?.min_order_b2b_kg) {
+      minB2bKg.value = Number(meta.settings.min_order_b2b_kg);
+    }
+  } catch (err) {
+    console.error('Failed to load meta:', err);
+  }
 };
 
 const loadProduct = async () => {
@@ -329,6 +353,10 @@ const addToCart = async () => {
 
 const submitNegotiation = async () => {
   if (!selectedVariant.value) return;
+  if (negoForm.requested_volume < minB2bKg.value) {
+    alert(`Batas minimal kuantitas negosiasi B2B adalah ${minB2bKg.value} kg.`);
+    return;
+  }
   negoLoading.value = true;
   try {
     await api.post('/negotiations', {
@@ -346,5 +374,8 @@ const submitNegotiation = async () => {
   }
 };
 
-onMounted(loadProduct);
+onMounted(async () => {
+  await loadMeta();
+  await loadProduct();
+});
 </script>

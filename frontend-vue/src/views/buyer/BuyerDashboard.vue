@@ -195,11 +195,11 @@
               <span>{{ idr(estimatedShipping) }}</span>
             </div>
             <div style="display: flex; justify-content: space-between;">
-              <span class="text-muted">PPN (11%):</span>
+              <span class="text-muted">PPN ({{ ppnRate }}%):</span>
               <span>{{ idr(taxAmount) }}</span>
             </div>
             <div style="display: flex; justify-content: space-between;">
-              <span class="text-muted">Biaya Layanan Platform (2%):</span>
+              <span class="text-muted">Biaya Layanan Platform ({{ platformFeePercent }}%):</span>
               <span>{{ idr(adminFee) }}</span>
             </div>
             <div style="border-top: 2px solid var(--border); padding-top: 0.75rem; margin-top: 0.25rem; display: flex; justify-content: space-between; font-size: 1.15rem; font-weight: 800; color: var(--primary);">
@@ -208,14 +208,25 @@
             </div>
           </div>
 
+          <!-- Batas Minimal Kuantitas Pemesanan B2B -->
+          <div v-if="auth.isB2B && totalWeightKg < minOrderB2bKg" style="background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b; padding: 0.75rem 1rem; border-radius: var(--radius); margin-bottom: 1rem; font-size: 0.85rem; color: #92400e;">
+            <div style="font-weight: 700; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.35rem;">
+              <span>⚠️ Batas Minimal Pembelian B2B</span>
+            </div>
+            <div>
+              Sebagai akun Pembeli B2B, batas kuantitas pemesanan minimal adalah <strong>{{ minOrderB2bKg }} kg</strong>. Total muatan saat ini: <strong>{{ totalWeightKg }} kg</strong> (Kurang <strong>{{ Math.max(0, minOrderB2bKg - totalWeightKg) }} kg</strong>). Silakan tambahkan kuantitas untuk melanjutkan transaksi.
+            </div>
+          </div>
+
           <!-- Anti-Race Condition Checkout Button -->
           <button
             class="btn btn-primary"
             style="width: 100%; font-size: 1rem; padding: 0.85rem; font-weight: 700;"
-            :disabled="checkingOut"
+            :disabled="checkingOut || (auth.isB2B && totalWeightKg < minOrderB2bKg)"
             @click="handleCheckout"
           >
             <span v-if="checkingOut">Mengunci Stok & Memproses...</span>
+            <span v-else-if="auth.isB2B && totalWeightKg < minOrderB2bKg">⚠️ Belum Mencapai Batas Minimal B2B (Min. {{ minOrderB2bKg }} kg)</span>
             <span v-else>🔒 Bayar & Kunci Stok (Checkout)</span>
           </button>
           <p style="font-size: 0.75rem; color: var(--text-muted); text-align: center; margin-top: 0.5rem;">
@@ -495,6 +506,12 @@ const cartItems = ref([]);
 const negotiations = ref([]);
 const orders = ref([]);
 const regions = ref([]);
+const systemSettings = ref({
+  ppn_rate: 11,
+  platform_fee_percent: 2,
+  min_order_b2b_kg: 50,
+  negotiation_expiry_days: 3,
+});
 
 const destinationRegionId = ref('');
 const deliveryAddress = ref(auth.user?.address || 'Jl. Gatot Subroto No. 45, Jakarta Selatan');
@@ -618,8 +635,12 @@ const estimatedShipping = computed(() => {
   return 25000 + (totalWeightKg.value * 3000);
 });
 
-const taxAmount = computed(() => Math.round(cartSubtotal.value * 0.11));
-const adminFee = computed(() => Math.round(cartSubtotal.value * 0.02));
+const ppnRate = computed(() => Number(systemSettings.value.ppn_rate ?? 11));
+const platformFeePercent = computed(() => Number(systemSettings.value.platform_fee_percent ?? 2));
+const minOrderB2bKg = computed(() => Number(systemSettings.value.min_order_b2b_kg ?? 50));
+
+const taxAmount = computed(() => Math.round(cartSubtotal.value * (ppnRate.value / 100)));
+const adminFee = computed(() => Math.round(cartSubtotal.value * (platformFeePercent.value / 100)));
 const grandTotal = computed(() => cartSubtotal.value + estimatedShipping.value + taxAmount.value + adminFee.value);
 
 const loadCart = async () => {
@@ -672,6 +693,9 @@ const loadMeta = async () => {
   try {
     const res = await api.get('/public/meta');
     regions.value = res.regions || [];
+    if (res.settings) {
+      systemSettings.value = { ...systemSettings.value, ...res.settings };
+    }
     if (regions.value.length > 0 && !destinationRegionId.value) {
       destinationRegionId.value = regions.value[0].id;
     }
@@ -777,10 +801,11 @@ const checkoutNegotiation = async (nego) => {
     await api.put('/cart/items', {
       variantId: nego.variant_id,
       qty: nego.requested_volume,
+      negotiationId: nego.id,
     });
     activeTab.value = 'cart';
     await loadCart();
-    noticeMessage.value = 'Hasil negosiasi harga berhasil dimasukkan ke keranjang!';
+    noticeMessage.value = `✓ Komoditas berhasil dimasukkan ke keranjang dengan harga kesepakatan negosiasi (${idr(nego.latest_offer?.offered_price || nego.current_offer_price)}/kg)!`;
   } catch (err) {
     errorMessage.value = err.message || 'Gagal memproses negosiasi ke keranjang.';
   }

@@ -161,6 +161,11 @@ class CommerceController extends Controller
             return response()->json(['error' => "Minimal pemesanan adalah {$variant->min_order} {$variant->unit}"], 422);
         }
 
+        $minB2bKg = (float) SystemSetting::getVal('min_order_b2b_kg', 50);
+        if ($user->buyer_type === 'b2b' && $validated['qty'] < $minB2bKg) {
+            return response()->json(['error' => "Batas kapasitas minimal pembelian untuk akun Pembeli B2B adalah {$minB2bKg} {$variant->unit}."], 422);
+        }
+
         if ($validated['qty'] > $variant->available_stock) {
             return response()->json(['error' => "Stok yang tersedia hanya {$variant->available_stock} {$variant->unit}"], 409);
         }
@@ -287,6 +292,18 @@ class CommerceController extends Controller
                         abort(409, "Harga kesepakatan negosiasi untuk {$v->variant_name} sudah tidak berlaku.");
                     }
                 }
+            }
+
+            // Enforce minimum purchase capacity for B2B buyers
+            $minB2bKg = (float) ($settings['min_order_b2b_kg'] ?? 50);
+            $totalCartWeightKg = $cartItems->sum(function ($ci) use ($lockedVariants) {
+                $v = $lockedVariants[$ci->variant_id] ?? null;
+                $w = $v ? ($v->weight_per_unit_kg ?: 1.0) : 1.0;
+                return (float) ($ci->qty * $w);
+            });
+
+            if ($user->buyer_type === 'b2b' && $totalCartWeightKg < $minB2bKg) {
+                abort(422, "Pesanan Pembeli B2B memerlukan kapasitas kuantitas minimum pembelian sebesar {$minB2bKg} kg. Muatan keranjang Anda saat ini: {$totalCartWeightKg} kg.");
             }
 
             // 4. Calculate multi-vendor order groups
@@ -749,6 +766,11 @@ class CommerceController extends Controller
             return response()->json(['error' => 'Fitur negosiasi harga hanya tersedia untuk akun Pembeli B2B terverifikasi.'], 403);
         }
 
+        $minB2bKg = (float) SystemSetting::getVal('min_order_b2b_kg', 50);
+        if ($validated['qty'] < $minB2bKg) {
+            return response()->json(['error' => "Batas kapasitas minimum kuantitas penawaran negosiasi B2B adalah {$minB2bKg} kg."], 422);
+        }
+
         $variant = Variant::with('commodity')->findOrFail($validated['variantId']);
         if ($variant->commodity->curation !== 'approved' || !$variant->commodity->is_active) {
             return response()->json(['error' => 'Komoditas tidak tersedia.'], 404);
@@ -762,14 +784,16 @@ class CommerceController extends Controller
             return response()->json(['error' => 'Penawaran harga terlalu rendah (minimal 50% dari harga katalog).'], 422);
         }
 
-        $negoId = DB::transaction(function () use ($user, $variant, $validated) {
+        $expiryDays = (int) SystemSetting::getVal('negotiation_expiry_days', 3);
+
+        $negoId = DB::transaction(function () use ($user, $variant, $validated, $expiryDays) {
             $nego = Negotiation::create([
                 'buyer_id' => $user->id,
                 'seller_id' => $variant->commodity->farmer_id,
                 'variant_id' => $variant->id,
                 'qty' => $validated['qty'],
                 'status' => 'open',
-                'expires_at' => Carbon::now()->addDays(3),
+                'expires_at' => Carbon::now()->addDays($expiryDays ?: 3),
             ]);
 
             NegotiationOffer::create([

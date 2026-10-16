@@ -28,9 +28,24 @@ class SystemSetting extends Model
             'ship_base_fee' => 15000,
             'ship_fee_per_kg_km' => 0.35,
             'payment_ttl_minutes' => 60,
+            'platform_fee_percent' => 2.0,
+            'ppn_rate' => 11.0,
+            'min_order_b2b_kg' => 50,
+            'negotiation_expiry_days' => 3,
         ];
         foreach ($all as $item) {
-            $out[$item->key] = is_numeric($item->value) ? (float) $item->value : $item->value;
+            $val = is_numeric($item->value) ? (float) $item->value : $item->value;
+            $out[$item->key] = $val;
+
+            if ($item->key === 'platform_fee_percent') {
+                $out['admin_fee_rate'] = ((float) $val) / 100.0;
+            } elseif ($item->key === 'admin_fee_rate') {
+                $out['platform_fee_percent'] = ((float) $val) * 100.0;
+            } elseif ($item->key === 'ppn_rate') {
+                $out['tax_rate'] = ((float) $val) / 100.0;
+            } elseif ($item->key === 'tax_rate') {
+                $out['ppn_rate'] = ((float) $val) * 100.0;
+            }
         }
         return $out;
     }
